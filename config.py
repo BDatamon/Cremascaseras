@@ -2,9 +2,9 @@ import requests
 import xmlrpc.client
 
 #Conexion PrestaShop
-base_url = "https://datamon2.ginernet.net"
-api_key = "F62Y8AR886NH9S2XL5VK6CLCYSQQQI34"
-prestashop_url ="https://datamon2.ginernet.net/api"
+base_url =       "https://www.cremas-caseras.es"
+api_key =        "KE9GISWX42MGE4PV9UZLQP4WSFHW3H2P"                  
+prestashop_url = "https://www.cremas-caseras.es/api"               #"https://datamon2.ginernet.net/api"
 
 print('☁️Conectandome...')
 
@@ -18,10 +18,10 @@ else:
 
 
 #Conexion Odoo
-url = "https://cremascaseras.odoo.com"
-db = "cremascaseras"
+url = "https://cremas-caseras.odoo.com"
+db = "cremas-caseras"
 username = "bocampo@datamon.es"
-password = "7cf1dfb233d14457bff392c9ad8e9fe8e517d541"
+password = "21b7df0c9bb75f8231665fb86688da96ed70a0ac"
 
 try:
     common = xmlrpc.client.ServerProxy(f'{url}/xmlrpc/2/common')
