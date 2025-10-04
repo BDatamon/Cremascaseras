@@ -3,6 +3,9 @@ import requests
 import json
 import base64
 
+from get_combinations import get_combination
+from get_values_attributes import get_values, get_attributes, create_attribute_odoo, create_value_odoo
+
 def get_products_id(): 
     try:
         url = f"{config.prestashop_url}/products?output_format=JSON&filter[active]=1"
@@ -95,6 +98,7 @@ def create_product_odoo(producto_odoo):
 subidos=[]
 
 if __name__=="__main__":
+    #Obtener IDs de PRODUCTOS
     productos_id = get_products_id()
     if productos_id:
         for id in productos_id:
@@ -106,10 +110,40 @@ if __name__=="__main__":
                 coste = producto_detail.get('wholesale_price')
                 description = producto_detail.get('description')[0]['value']
                 referencia =producto_detail.get('reference')
-                #Obtener Id de la imagen que esta dentro del objeto associations
+                #Obtener Id de la IMAGEN que esta dentro del objeto associations
                 field_image = producto_detail.get('associations', {}).get('images')
                 id_image = field_image[0]['id'] if field_image else None
                 imagen_producto = get_image(id_image, nombre)
+            
+
+                #Mira si tiene COMBINACIONES ese producto y las obtiene
+                name_attribute = None
+                name_value = None
+                existe_combination = producto_detail['id_default_combination'] 
+                if existe_combination != 0:
+                    print(f'✅ El producto {nombre} tiene combinaciones')
+                    combinations = producto_detail.get('associations').get('combinations', [])
+                    for combination in combinations:                        
+                        id_combination = combination.get('id')
+                        obtener_combination = get_combination(id_combination)
+                        #Mira si tiene VALORES y las obtiene por producto
+                        product_option_values = obtener_combination.get('associations', {}).get('product_option_values', [])
+                        for value in product_option_values:
+                            value_id = value.get('id')
+                            obtener_value = get_values(value_id)
+                            name_value = obtener_value.get('name')[0].get('value')
+                            id_attribute = obtener_value.get('id_attribute_group')
+                            #Obtener ARIBUTOS por producto
+                            obtener_attributes = get_attributes(id_attribute)
+                            name_attribute = obtener_attributes.get('name')[0].get('value')
+                            #id_attribute = obtener_attributes.get('id')<--------------------------------------------------------------------
+                            #Crear el atributo en PRODUCT.ATTRIBUTE
+                            upload_attribute = create_attribute_odoo(name_attribute, id_attribute)
+                            #Creamos los VALORES de ese atributo en PRODUCT.ATTRIBUTE.VALUE
+                            if upload_attribute:
+                                create_value_odoo(id_attribute,name_value, value_id, )
+
+                        
 
                 #Datos Odoo
                 producto_odoo = {
@@ -131,7 +165,7 @@ if __name__=="__main__":
                 #crear_productos       
                 upload_odoo = create_product_odoo(producto_odoo, subidos)
                 if upload_odoo:
-                    subidos.append(id)
-
+                    subidos.append(id) #Esto es para contabilizar cuantos productos se han subido
+            
                 # print(json.dumps(producto_detail, indent=2, ensure_ascii=False))    
         print(f"🎊🎉Proceso terminado: Productos creados en Odoo {len(subidos)}")
