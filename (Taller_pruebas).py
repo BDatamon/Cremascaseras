@@ -134,6 +134,7 @@ if __name__=="__main__":
                     for combination in combinations:              #2. for es para combinaciones                            
                         id_combination = combination.get('id')
                         obtener_combination = get_combination(id_combination)
+
                         #Mira si tiene VALORES y las obtiene por producto
                         product_option_values = obtener_combination.get('associations', {}).get('product_option_values', [])
                         for value in product_option_values:        #3. for es para valores
@@ -233,9 +234,88 @@ if __name__=="__main__":
                             }]
                         )
                         print(f"🧩 Atributo '{name_attribute}' con valores {values_list} vinculado al producto {nombre}")
+#--------------------------------------------------------------------------------------------------------------------------------
 
-                #Buscamos los nombres de las variantes creadas en el product.product
-                #si estan le agregamos sus pesos, prestashop id y precio    
+
+
+
+
+                #Actualizar las variantes (product.product) con datos de combinaciones
+                if existe_combination != 0:
+                    variantes_odoo = config.models.execute_kw(
+                        config.db,
+                        config.uid,
+                        config.password,
+                        'product.product',
+                        'search_read',
+                        [[['product_tmpl_id', '=', upload_odoo]]],
+                    {'fields': ['id', 'product_template_attribute_value_ids', 'lst_price', 'x_studio_p_id', 'barcode', 'default_code', 'weight']}
+                    )
+                    
+                    for combination in combinations:
+                        combination_id = combination.get('id')
+                        obtener_combination = get_combination(combination_id)        
+                        referencia_combination = obtener_combination.get('reference')
+                        ean_combination = obtener_combination.get('ean13')
+                        precio_combination = obtener_combination.get('wholesale_price')
+                        peso_combination = obtener_combination.get('weight')
+
+                        combinations = producto_detail.get('associations').get('combinations', [])
+                        valores_combination = []
+                        for value in product_option_values:
+                            value_id = value.get('id')
+                            obtener_value = get_values(value_id)
+                            name_value = obtener_value.get('name')[0].get('value')
+                            valores_combination.append(name_value)
+
+                        #Buscamos la variante Odoo que coincida con esos valores
+                        for var in variantes_odoo:
+                            var_id = var['id']
+                        #Leemos los nombres de los valores de atributo en esta variante
+                            var_values = config.models.execute_kw(
+                                config.db,
+                                config.uid,
+                                config.password,
+                                'product.product',
+                                'read',
+                                [var_id],
+                                {'fields': ['product_template_attribute_value_ids']}
+                            )[0]['product_template_attribute_value_ids']
+                            
+                            var_value_names = []
+                            if var_values:
+                                for v_id in var_values:
+                                    valor_data = config.models.execute_kw(
+                                        config.db,
+                                        config.uid,
+                                        config.password,
+                                        'product.template.attribute.value',
+                                        'read',
+                                        [v_id],
+                                        {'fields': ['name']}
+                                    )
+                                    if valor_data:
+                                        var_value_names.append(valor_data[0]['name'])
+
+                            #Comparamos las listas de valores
+                            if sorted(valores_combination) == sorted(var_value_names):
+                            # Coinciden, actualizamos la variante con sus datos
+                                config.models.execute_kw(
+                                config.db,
+                                config.uid,
+                                config.password,
+                                'product.product',
+                                'write',
+                                [[var_id], {
+                                'weight': peso_combination,
+                                'lst_price': precio_combination,
+                                'barcode': ean_combination,
+                                'default_code': referencia_combination,
+                                'x_studio_p_id': id_combination  # opcional, si quieres guardar el id de PrestaShop
+                            }]
+                )
+                print(f"🧬 Variante actualizada ({valores_combination}) → Peso: {peso_combination}, Precio: {precio_combination}, EAN: {ean_combination}")
+                break
 
                    
         print(f"🎊🎉Proceso terminado: Productos creados en Odoo {len(subidos)}")
