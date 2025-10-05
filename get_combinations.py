@@ -11,7 +11,7 @@ def get_combination(id):
         
         if response.status_code == 200:
             data = response.json().get('combination')
-            print(f"🎉🎉 Combinacion obtenida")
+            print(f"🎉🎉 Combinacion obtenida: {id}")
             return data
         else:
             print(f"❌❌Error al obtener Detalles del combination {id}: {response.status_code}")

@@ -4,7 +4,7 @@ import json
 import base64
 
 from get_combinations import get_combination
-from get_values_attributes import get_values, get_attributes, create_attribute_odoo, create_value_odoo
+from get_values_attributes import get_values, get_attributes, create_attribute_odoo, create_value_odoo, get_id_attribute_odoo,get_p_id_odoo
 
 def get_products_id(): 
     try:
@@ -35,7 +35,7 @@ def get_productos_details(id):
         
         if response.status_code == 200:
             data = response.json().get('product')
-            print(f"🎉🎉 Detalles obtenidos")
+            print(f"🎉🎉 Detalles del producto obtenidos , Id del producto: {id}")
             return data
         else:
             print(f"❌❌Error al obtener Detalles del producto {id}: {response.status_code}")
@@ -101,7 +101,7 @@ if __name__=="__main__":
     #Obtener IDs de PRODUCTOS
     productos_id = get_products_id()
     if productos_id:
-        for id in productos_id:
+        for id in productos_id:                               #1. for es para productos
             id_product = id.get('id')
             producto_detail = get_productos_details(id_product)
             if producto_detail:
@@ -121,28 +121,41 @@ if __name__=="__main__":
                 name_value = None
                 existe_combination = producto_detail['id_default_combination'] 
                 if existe_combination != 0:
-                    print(f'✅ El producto {nombre} tiene combinaciones')
+                    print(f'✅ El producto "{nombre}" tiene combinaciones')
                     combinations = producto_detail.get('associations').get('combinations', [])
-                    for combination in combinations:                        
+                    for combination in combinations:              #2. for es para combinaciones                            
                         id_combination = combination.get('id')
                         obtener_combination = get_combination(id_combination)
                         #Mira si tiene VALORES y las obtiene por producto
                         product_option_values = obtener_combination.get('associations', {}).get('product_option_values', [])
-                        for value in product_option_values:
+                        for value in product_option_values:        #3. for es para valores
                             value_id = value.get('id')
                             obtener_value = get_values(value_id)
                             name_value = obtener_value.get('name')[0].get('value')
                             id_attribute = obtener_value.get('id_attribute_group')
-                            #Obtener ARIBUTOS por producto
+
+                            #Obtener ARIBUTOS por cada producto
                             obtener_attributes = get_attributes(id_attribute)
                             name_attribute = obtener_attributes.get('name')[0].get('value')
-                            #id_attribute = obtener_attributes.get('id')<--------------------------------------------------------------------
-                            #Crear el atributo en PRODUCT.ATTRIBUTE
-                            upload_attribute = create_attribute_odoo(name_attribute, id_attribute)
-                            #Creamos los VALORES de ese atributo en PRODUCT.ATTRIBUTE.VALUE
-                            if upload_attribute:
-                                create_value_odoo(id_attribute,name_value, value_id, )
 
+
+                            #Buscamos si el atributo_id ya esta en la lista de ATRIBUTOS Odoo para no duplicarlo
+                            id_prestashop_attribute  = get_p_id_odoo(id_attribute)
+
+
+                            #Si el atributo NO existe, lo creamos
+                            if id_attribute != id_prestashop_attribute:
+                                upload_attribute_odoo = create_attribute_odoo(name_attribute, id_attribute)
+                                print(f'Atributo {name_attribute} creado en Odoo')
+
+
+                            #Creamos los VALORES de ese atributo en PRODUCT.ATTRIBUTE.VALUE
+                            #Creamos una funcion para EXTRAER el Id del atributo de Odoo x medio del name atributo 
+                            id_attribute_odoo = get_id_attribute_odoo(name_attribute)
+                            if id_attribute_odoo:
+                                create_value_odoo(id_attribute_odoo,name_value, value_id, )
+                        
+        
                         
 
                 #Datos Odoo
@@ -166,6 +179,10 @@ if __name__=="__main__":
                 upload_odoo = create_product_odoo(producto_odoo, subidos)
                 if upload_odoo:
                     subidos.append(id) #Esto es para contabilizar cuantos productos se han subido
-            
+
+                    
+                #Aqui creo la llamada la funcion para crear esos atributos con valores en el modulo product.template.attribute.line
+
+
                 # print(json.dumps(producto_detail, indent=2, ensure_ascii=False))    
         print(f"🎊🎉Proceso terminado: Productos creados en Odoo {len(subidos)}")
