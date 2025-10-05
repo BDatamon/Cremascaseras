@@ -135,3 +135,19 @@ def get_id_attribute_odoo(name):
         return None
     
 
+
+def get_value_id_odoo(name_value):
+    try:
+        result = config.models.execute_kw(
+            config.db,
+            config.uid,
+            config.password,
+            'product.attribute.value',
+            'search_read',
+            [[['name', '=', name_value]]],
+            {'fields': ['id'], 'limit': 1}
+        )
+        return result[0]['id'] if result else None
+    except Exception as e:
+        print(f"❌ Error obteniendo value_id_odoo ({name_value}): {e}")
+        return None
