@@ -64,7 +64,7 @@ def create_attribute_odoo(name, id):
 
 
 
-
+#funcion ra acrear valores en Odoo
 def create_value_odoo(id_attribute, name_value, value_id  ):
     try:
         datos = {'name': name_value, 'attribute_id': id_attribute, 'x_studio_p_id': value_id}
@@ -133,9 +133,10 @@ def get_id_attribute_odoo(name):
     except Exception as e:
         print(f"❌ Error al crear {e}")
         return None
-    
 
 
+
+#funcion para obtener el id odoo de cada valor por medio del nombre del valor
 def get_value_id_odoo(name_value):
     try:
         result = config.models.execute_kw(
@@ -150,4 +151,59 @@ def get_value_id_odoo(name_value):
         return result[0]['id'] if result else None
     except Exception as e:
         print(f"❌ Error obteniendo value_id_odoo ({name_value}): {e}")
+        return None
+
+
+
+#funcion para buscar el Id prestashop del valor en Odoo    
+def get_value_id_ps_odoo(ps_id):
+    try:
+        domain = [[('x_studio_p_id', '=', ps_id)]]
+        result = config.models.execute_kw(
+            config.db,
+            config.uid,
+            config.password,
+            'product.attribute.value',
+            'search_read',
+            domain,
+            {'fields':['x_studio_p_id']}
+        )
+        return result[0]['x_studio_p_id']
+    except Exception as e:
+        print(f"❌ Error obteniendo value_id_odoo ({ps_id}): {e}")
+        return None
+
+
+
+#Funcion para Obtener las variantes en Odoo del product.product
+def get_variantes_odoo(product_template_odoo):
+    try:
+        result = config.models.execute_kw(
+            config.db,
+            config.uid,
+            config.password,
+            'product.product',
+            'search_read',
+            [[['product_tmpl_id', '=', product_template_odoo]]],
+            {'fields':['valid_product_template_attribute_line_ids'] }
+        )
+        return result
+    except Exception as e:
+        print(f"❌ Error obteniendo value_id_odoo ({product_template_odoo}): {e}")
+        return None
+
+
+def write_variantes_odoo(v,id_v,datos):
+    try:
+        result = config.models.execute_kw(
+            config.db,
+            config.uid,
+            config.password,
+            'product.product',
+            'write',
+            [[id_v], datos],           
+        )
+        return result
+    except Exception as e:
+        print(f"❌ Error obteniendo value_id_odoo ({v}): {e}")
         return None

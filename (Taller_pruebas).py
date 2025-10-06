@@ -3,8 +3,8 @@ import requests
 import json
 import base64
 
-from get_combinations import get_combination
-from get_values_attributes import get_values, get_attributes, create_attribute_odoo, create_value_odoo, get_id_attribute_odoo,get_p_id_odoo,get_value_id_odoo
+from get_combinations import get_combination, get_producto_id_ps_odoo
+from get_values_attributes import get_values, get_attributes, create_attribute_odoo, create_value_odoo, get_id_attribute_odoo,get_p_id_odoo,get_value_id_odoo,get_value_id_ps_odoo,get_variantes_odoo,write_variantes_odoo
 
 def get_products_id(): 
     try:
@@ -84,7 +84,7 @@ def create_product_odoo(producto_odoo):
                 [producto_odoo]
         )
         if product_up:
-            print(f"✅ Producto creado: {nombre} (ID: {id_product})")
+            print(f"🥏🥏--------------------- Producto creado: {nombre} (ID: {id_product})")
             return product_up
         else:
             print('❌No se pudo crear el producto')
@@ -127,7 +127,7 @@ if __name__=="__main__":
                 atributos_valores = {}
 
                 #Obtener combinaciones 
-                existe_combination = producto_detail['id_default_combination'] 
+                existe_combination = producto_detail['id_default_combination']
                 if existe_combination != 0:
                     print(f'✅ El producto "{nombre}" tiene combinaciones')
                     combinations = producto_detail.get('associations').get('combinations', [])
@@ -151,18 +151,20 @@ if __name__=="__main__":
                             #Buscamos si el atributo_id ya esta en la lista de ATRIBUTOS Odoo para no duplicarlo
                             id_prestashop_attribute  = get_p_id_odoo(id_attribute)
 
-
+                            
                             #Si el atributo NO existe, lo creamos
                             if id_attribute != id_prestashop_attribute:
                                 upload_attribute_odoo = create_attribute_odoo(name_attribute, id_attribute)
                                 print(f'Atributo {name_attribute} creado en Odoo')
 
 
+                            valor_id_ps_odoo = get_value_id_ps_odoo(value_id)
+                            if valor_id_ps_odoo != value_id:
                             #Creamos los VALORES de ese atributo en PRODUCT.ATTRIBUTE.VALUE
                             #Creamos una funcion para EXTRAER el Id del atributo de Odoo x medio del name atributo 
-                            id_attribute_odoo = get_id_attribute_odoo(name_attribute)
-                            if id_attribute_odoo:
-                                create_value_odoo(id_attribute_odoo,name_value, value_id, )
+                                id_attribute_odoo = get_id_attribute_odoo(name_attribute)
+                                if id_attribute_odoo:
+                                    create_value_odoo(id_attribute_odoo,name_value, value_id, )
                         
 
                             # Agrupar valores por atributo
@@ -173,149 +175,111 @@ if __name__=="__main__":
                         
 
                 #Datos Odoo
-                producto_odoo = {
-                    "name": nombre,
-                    "x_studio_p_id": id_product,                
-                    "default_code": referencia,
-                    "list_price": price_venta,
-                    "standard_price": coste,
-                    "type": "consu",
-                    "purchase_ok": True,
-                    "sale_ok": True,
-                    "uom_id": 1,  # Unidad de medida por defecto (1 = Units)
-                    "currency_id": 125,  # EUR (según el ejemplo)
-                    "public_description": str(description),
-                    "available_in_pos": True   
-                }
-                if imagen_producto:
-                        producto_odoo["image_1920"] = imagen_producto
-                #crear_productos       
-                upload_odoo = create_product_odoo(producto_odoo)
-                if upload_odoo:
-                    subidos.append(id) #Esto es para contabilizar cuantos productos se han subido
+                producto_in_odoo = get_producto_id_ps_odoo(id_product)
+                if producto_in_odoo != id_product:
+                    producto_odoo = {
+                        "name": nombre,
+                        "x_studio_p_id": id_product,                
+                        "default_code": referencia,
+                        "list_price": price_venta,
+                        "standard_price": coste,
+                        "type": "consu",
+                        "purchase_ok": True,
+                        "sale_ok": True,
+                        "uom_id": 1,  # Unidad de medida por defecto (1 = Units)
+                        "currency_id": 125,  # EUR (según el ejemplo)
+                        "public_description": str(description),
+                        "available_in_pos": True   
+                    }
+                    if imagen_producto:
+                            producto_odoo["image_1920"] = imagen_producto
+                    #crear_productos       
+                    upload_odoo = create_product_odoo(producto_odoo)
+                    if upload_odoo:
+                        subidos.append(id) #Esto es para contabilizar cuantos productos se han subido
 
-                    
-                #Aqui creo la llamada la funcion para crear esos atributos con valores en el modulo product.template.attribute.line
-                #Aqui agrego por cada valor sus Id's de Odoo a la variable value_ids_odoo
-                for name_attribute, values_list in atributos_valores.items():
-                    id_attribute_odoo = get_id_attribute_odoo(name_attribute)
-                    value_ids_odoo = []
-                    for v in values_list:
-                        value_id_odoo = get_value_id_odoo(v)
-                        if value_id_odoo:
-                            value_ids_odoo.append(value_id_odoo)
 
-                if id_attribute_odoo and value_ids_odoo:
-                    #Verificamos si ya estan los atributos y valores puestos en el modulo 'product.template.attribute.line'
-                    existing_line = config.models.execute_kw(
-                        config.db, 
-                        config.uid, 
-                        config.password,
-                        'product.template.attribute.line', 
-                        'search',
-                        [[
-                            ['product_tmpl_id', '=', upload_odoo],
-                            ['attribute_id', '=', id_attribute_odoo]
-                        ]],
-                        {'limit': 1}
-                    )
-                    #Si no exieten los creamos 
-                    if not existing_line:
-                        config.models.execute_kw(
-                            config.db,
-                            config.uid,
+                        
+                    #Aqui creo la llamada la funcion para crear esos atributos con valores en el modulo product.template.attribute.line
+                    #Aqui agrego por cada valor sus Id's de Odoo a la variable value_ids_odoo
+                    for name_attribute, values_list in atributos_valores.items():
+                        id_attribute_odoo = get_id_attribute_odoo(name_attribute)
+                        value_ids_odoo = []
+                        for v in values_list:
+                            value_id_odoo = get_value_id_odoo(v)
+                            if value_id_odoo:
+                                value_ids_odoo.append(value_id_odoo)
+
+                    if id_attribute_odoo and value_ids_odoo:
+                        #Verificamos si ya estan los atributos y valores puestos en el modulo 'product.template.attribute.line'
+                        existing_line = config.models.execute_kw(
+                            config.db, 
+                            config.uid, 
                             config.password,
-                            'product.template.attribute.line',
-                            'create',
-                            [{
-                                "product_tmpl_id": upload_odoo,
-                                "attribute_id": id_attribute_odoo,
-                                "value_ids": [(6, 0, value_ids_odoo)]
-                            }]
+                            'product.template.attribute.line', 
+                            'search',
+                            [[
+                                ['product_tmpl_id', '=', upload_odoo],
+                                ['attribute_id', '=', id_attribute_odoo]
+                            ]],
+                            {'limit': 1}
                         )
-                        print(f"🧩 Atributo '{name_attribute}' con valores {values_list} vinculado al producto {nombre}")
+                        #Si no exieten CREAMOS ESAS VARIANTES en el producto
+                        if not existing_line:
+                            config.models.execute_kw(
+                                config.db,
+                                config.uid,
+                                config.password,
+                                'product.template.attribute.line',
+                                'create',
+                                [{
+                                    "product_tmpl_id": upload_odoo,
+                                    "attribute_id": id_attribute_odoo,
+                                    "value_ids": [(6, 0, value_ids_odoo)]
+                                }]
+                            )
+                            print(f"🧩 Atributo '{name_attribute}' con valores {values_list} vinculado al producto {nombre}")
+
+
+
+
+
+#_________________________________________________________CONSTRUCCION_________________________________________________________________________________
+
+                        #Aqui vamos a modificar las variantes en Odoo con los datos de las combinaciones de Prestashop
+
+                            if existe_combination != 0:
+                                combinations = producto_detail.get('associations').get('combinations', [])
+                                for combination in combinations:              #2. for es para combinaciones                            
+                                    id_combination = combination.get('id')
+                                    obtener_combination = get_combination(id_combination)
+                                    product_option_values = obtener_combination.get('associations', {}).get('product_option_values', [])
+                                    for value in product_option_values:        #3. for es para valores
+                                        value_id = value.get('id')
+                                        obtener_value = get_values(value_id)
+                                        name_value = obtener_value.get('name')[0].get('value')
+
+                                        variantes_odoo = get_variantes_odoo(upload_odoo)
+                                        if variantes_odoo:
+                                            if name_value in variantes_odoo:
+                                                print('prueba superada')
+                                                for v in variantes_odoo:
+                                                    id_v = v.get('id')
+                                                    datos_variante = {
+                                                        'lst_price': obtener_combination.get('wholesale_price'),  # Precio de venta
+                                                        'weight': obtener_combination.get('weight'),              # Peso del producto
+                                                        'barcode': obtener_combination.get('ean13'),              # EAN/Código de barras
+                                                        'x_studio_p_id': obtener_combination.get('id'),           # ID de Prestashop
+                                                        'default_code': obtener_combination.get('reference')      # Referencia interna
+                                                    }
+
+                                                    ingresar_datos_variantes_odoo = write_variantes_odoo(v,id_v,datos_variante)
+                                                    if ingresar_datos_variantes_odoo:
+                                                        print(f"✏️ Variante ID {id_v} actualizada")
+
 #--------------------------------------------------------------------------------------------------------------------------------
 
-
-
-
-
-                #Actualizar las variantes (product.product) con datos de combinaciones
-                if existe_combination != 0:
-                    variantes_odoo = config.models.execute_kw(
-                        config.db,
-                        config.uid,
-                        config.password,
-                        'product.product',
-                        'search_read',
-                        [[['product_tmpl_id', '=', upload_odoo]]],
-                    {'fields': ['id', 'product_template_attribute_value_ids', 'lst_price', 'x_studio_p_id', 'barcode', 'default_code', 'weight']}
-                    )
-                    
-                    for combination in combinations:
-                        combination_id = combination.get('id')
-                        obtener_combination = get_combination(combination_id)        
-                        referencia_combination = obtener_combination.get('reference')
-                        ean_combination = obtener_combination.get('ean13')
-                        precio_combination = obtener_combination.get('wholesale_price')
-                        peso_combination = obtener_combination.get('weight')
-
-                        combinations = producto_detail.get('associations').get('combinations', [])
-                        valores_combination = []
-                        for value in product_option_values:
-                            value_id = value.get('id')
-                            obtener_value = get_values(value_id)
-                            name_value = obtener_value.get('name')[0].get('value')
-                            valores_combination.append(name_value)
-
-                        #Buscamos la variante Odoo que coincida con esos valores
-                        for var in variantes_odoo:
-                            var_id = var['id']
-                        #Leemos los nombres de los valores de atributo en esta variante
-                            var_values = config.models.execute_kw(
-                                config.db,
-                                config.uid,
-                                config.password,
-                                'product.product',
-                                'read',
-                                [var_id],
-                                {'fields': ['product_template_attribute_value_ids']}
-                            )[0]['product_template_attribute_value_ids']
-                            
-                            var_value_names = []
-                            if var_values:
-                                for v_id in var_values:
-                                    valor_data = config.models.execute_kw(
-                                        config.db,
-                                        config.uid,
-                                        config.password,
-                                        'product.template.attribute.value',
-                                        'read',
-                                        [v_id],
-                                        {'fields': ['name']}
-                                    )
-                                    if valor_data:
-                                        var_value_names.append(valor_data[0]['name'])
-
-                            #Comparamos las listas de valores
-                            if sorted(valores_combination) == sorted(var_value_names):
-                            # Coinciden, actualizamos la variante con sus datos
-                                config.models.execute_kw(
-                                config.db,
-                                config.uid,
-                                config.password,
-                                'product.product',
-                                'write',
-                                [[var_id], {
-                                'weight': peso_combination,
-                                'lst_price': precio_combination,
-                                'barcode': ean_combination,
-                                'default_code': referencia_combination,
-                                'x_studio_p_id': id_combination  # opcional, si quieres guardar el id de PrestaShop
-                            }]
-                )
-                print(f"🧬 Variante actualizada ({valores_combination}) → Peso: {peso_combination}, Precio: {precio_combination}, EAN: {ean_combination}")
-                break
-
-                   
+                else:
+                    print(f'🔍🔍 El producto {nombre} ya existe en Odoo')
+               
         print(f"🎊🎉Proceso terminado: Productos creados en Odoo {len(subidos)}")
