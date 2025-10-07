@@ -89,7 +89,7 @@ def create_value_odoo(id_attribute, name_value, value_id  ):
 
 
 #funcion para ver si el Id de prestashop del atributo ya esta en Odoo
-def get_p_id_odoo(id):
+def get_attribute_p_id_odoo(id):
     try:
         resultado = config.models.execute_kw(
         config.db, 
@@ -101,10 +101,9 @@ def get_p_id_odoo(id):
         {'fields': ['x_studio_p_id'], 'limit': 1}
         )
         if resultado:
-            print(f"✅ Id obtenido: {resultado}")
-            return resultado[0]['x_studio_p_id']
+            return int(resultado[0]['x_studio_p_id'])
         else:
-            print('❌El id del atributo ps no esta en Odoo')
+            print('🔍El id del atributo ps no esta en Odoo')
             return None
     except Exception as e:
         print(f"❌ Error al crear {e}")
@@ -125,7 +124,6 @@ def get_id_attribute_odoo(name):
         {'limit': 1}
         )
         if resultado:
-            print(f"✅ Id obtenido: {resultado}")
             return resultado[0]
         else:
             print('❌ No se puedo obtener el Id del atributo')
@@ -168,7 +166,11 @@ def get_value_id_ps_odoo(ps_id):
             domain,
             {'fields':['x_studio_p_id']}
         )
-        return result[0]['x_studio_p_id']
+        if result:
+            return int(result[0]['x_studio_p_id'])
+        else:
+            print('🔍El id del valor ps no esta en Odoo')
+            return None
     except Exception as e:
         print(f"❌ Error obteniendo value_id_odoo ({ps_id}): {e}")
         return None
@@ -189,7 +191,7 @@ def get_variantes_odoo(product_template_odoo):
         )
         return result
     except Exception as e:
-        print(f"❌ Error obteniendo value_id_odoo ({product_template_odoo}): {e}")
+        print(f"⚠️ REVISION ({product_template_odoo}):")
         return None
 
 
@@ -203,7 +205,11 @@ def write_variantes_odoo(v,id_v,datos):
             'write',
             [[id_v], datos],           
         )
-        return result
+        if result:
+            return result
+        else:
+            print(f"❌❌Error al actualizar variante: {id_v}")
+            return None
     except Exception as e:
-        print(f"❌ Error obteniendo value_id_odoo ({v}): {e}")
+        print(f"⚠️ REVISION ({v})")
         return None
