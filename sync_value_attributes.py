@@ -24,7 +24,51 @@ def get_attributes_all():
     except Exception as e:
         print(f'❌ Error en get_attribute: {e}')
         return None
+    
+
+def update_attribute(id_odoo, name):
+    try:
+        result = config.models.execute_kw(
+            config.db,
+            config.uid,
+            config.password,
+            'product.attribute',
+            'write',
+            [[id_odoo], {'name': name}]
+        )
+        if result:
+            print(f'🔃 Nombre del Atributo Actualizado : {name}')
+            return result
+        else:
+            return None
+    except Exception as e:
+        print(f'❌ Error en Actualizar: {e}')
+        return None
+
+
+def update_value(valor_id,name_value): 
+    try:
+        valor_id_int = int(valor_id)
+        result = config.models.execute_kw(
+            config.db,
+            config.uid,
+            config.password,
+            'product.attribute.value',
+            'write',
+            [[valor_id_int], {'name': name_value}]
+        )
+        if result:
+            print(f'🔃 Nombre del valor Actualizado : {name_value}')
+            return result
+        else:
+            return None
+    except Exception as e:
+        print(f'❌ Error en Actualizar: {e}')
+        return None
+
 #______________________________________________________________________________________________________
+
+
 
 
 
@@ -43,30 +87,41 @@ if __name__=="__main__":
             name_attribute = obtener_detalles_atributo.get('name')[0].get('value')
             #miramos si el atributo ya existe en Odoo
             id_prestashop_attribute_odoo = get_attribute_p_id_odoo(atributo_id)
+            #Si el atributo id prestashop es diferente al id de prestashop de Odoo lo creamos
             if atributo_id != id_prestashop_attribute_odoo:
                 upload_attribute_odoo = create_attribute_odoo(name_attribute, atributo_id)
                 total_atributos_creados += 1
             else:
                 print('🔍El atributo ya existe en Odoo')
+
+            #Actualizamos el nombre del Atributo en Odoo si es que ya existe
+            #Creamos una funcion para EXTRAER el Id del atributo de Odoo x medio del name atributo
+            id_attribute_odoo = get_id_attribute_odoo(name_attribute)
+            if id_attribute_odoo:
+                actualizar_nombre_atributo = update_attribute(id_attribute_odoo, name_attribute)
+
         obtener_valores_atributo = obtener_detalles_atributo.get('associations').get('product_option_values')
         for valor in obtener_valores_atributo:
             valor_id = valor.get('id')        
             valor_id_ps_odoo = get_value_id_ps_odoo(valor_id)
             detalles_valor = get_values(valor_id)
             id_valor_ps = detalles_valor.get('id')
+            name_value = detalles_valor.get('name')[0].get('value')
             if valor_id_ps_odoo != id_valor_ps:
                 #Creamos los VALORES de ese atributo en PRODUCT.ATTRIBUTE.VALUE
-                #Creamos una funcion para EXTRAER el Id del atributo de Odoo x medio del name atributo 
-                id_attribute_odoo = get_id_attribute_odoo(name_attribute)
                 if id_attribute_odoo:
-                    if detalles_valor:
-                        name_value = detalles_valor.get('name')[0].get('value')
+                    if detalles_valor:                        
                         valor_creado = create_value_odoo(id_attribute_odoo,name_value, id_valor_ps)
                         if valor_creado:
                             print(f"✅✅ VALOR CREADO: '{name_value}' para atributo '{name_attribute}' (ID PS: {id_valor_ps})") 
                     total_valores_creados += 1
             else:
-                print(f'🔍El valor ya existe en Odoo {valor_id}')            
+                print(f'🔍El valor ya existe en Odoo {valor_id}')
+
+            #Actulizamos el nombre del Valores en Odoo
+
+            actualizar_nombre_valor = update_value(valor_id,name_value )
+                        
                                        
 print(f"🎯 Total de atributos creados en Odoo: {total_atributos_creados}") 
 

@@ -121,12 +121,35 @@ def update_category_parent(odoo_id, parent_odoo_id):
             [[odoo_id], {'parent_id': parent_odoo_id}]
         )
         if result:
-            print(f"✅ Jerarquía actualizada para categoria Odoo ID: {odoo_id} -> Padre: {parent_odoo_id}")
+            print(f"🔃 Jerarquía actualizada para categoria Odoo ID: {odoo_id} -> Padre: {parent_odoo_id}")
             return True
         return False
     except Exception as e:
         print(f"❌ Error actualizando jerarquía: {e}")
         return False
+
+
+def update_categoria(id_odoo, nombre):
+    try:
+        result = config.models.execute_kw(
+            config.db,
+            config.uid,
+            config.password,
+            'product.category',
+            'write',
+            [[id_odoo], 
+             {'name': nombre}]
+        )
+        if result:
+            print(f"🔃 Nombre Actualizado: {nombre} -> Id Odoo: {id_odoo}")
+            return True
+        return False
+    except Exception as e:
+        print(f"❌ Error actualizando jerarquía: {e}")
+        return False
+
+
+
 
 
 # ============================================
@@ -193,6 +216,10 @@ if __name__ == "__main__":
             # La categoría ya existe
             print(f"   ℹ️  Categoría ya existe en Odoo (ID: {existing_odoo_id})")
             ps_to_odoo_map[ps_id] = existing_odoo_id
+
+
+            #Actualiza categoria con la de prestashop(solo actualiza su nombre)
+            actualizar_categoria = update_categoria(existing_odoo_id, nombre_categoria)
             
             # Actualizar jerarquía si es necesario
             if parent_odoo_id and ps_id not in [1, 2]:
