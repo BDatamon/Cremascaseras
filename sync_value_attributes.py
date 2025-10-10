@@ -4,7 +4,7 @@ import json
 import base64
 
 
-from get_values_attributes import get_values, get_attributes, create_attribute_odoo, create_value_odoo, get_id_attribute_odoo,get_value_id_odoo,get_value_id_ps_odoo,get_variantes_odoo,write_variantes_odoo, get_attribute_p_id_odoo
+from get_values_attributes import get_values, get_attributes, create_attribute_odoo, create_value_odoo, get_id_attribute_odoo,get_value_id_ps_odoo, get_attribute_p_id_odoo
 
 
 def get_attributes_all():

@@ -11,7 +11,6 @@ def get_values(id):
         
         if response.status_code == 200:
             data = response.json().get('product_option_value')
-            print(f"🎉🎉 value obtenido: {id}")
             return data
         else:
             print(f"❌❌Error al obtener Detalles del product_option_value {id}: {response.status_code}")
@@ -31,7 +30,6 @@ def get_attributes(id):
         
         if response.status_code == 200:
             data = response.json().get('product_option')
-            print(f"🎉🎉 attributo obtenido: {id}")
             return data
         else:
             print(f"❌❌Error al obtener Detalles del attribute {id}: {response.status_code}")
@@ -174,28 +172,39 @@ def get_value_id_ps_odoo(ps_id):
     except Exception as e:
         print(f"❌ Error obteniendo value_id_odoo ({ps_id}): {e}")
         return None
+    
 
 
 
-#Funcion para Obtener las variantes en Odoo del product.product
-def get_variantes_odoo(product_template_odoo):
-    try:
+def search_variant_odoo(upload_odoo, valores_odoo_ids):
+    try: 
         result = config.models.execute_kw(
-            config.db,
-            config.uid,
-            config.password,
-            'product.product',
-            'search_read',
-            [[['product_tmpl_id', '=', product_template_odoo]]],
-            {'fields':['valid_product_template_attribute_line_ids'] }
+                config.db,
+                config.uid,
+                config.password,
+                'product.product',
+                'search',
+                [[
+                ['product_tmpl_id', '=', upload_odoo],  # Del producto padre
+                #CONECTA LA VARIANTE CON LOS VALORES DE SU ATRIBUTO
+                ['product_template_attribute_value_ids.product_attribute_value_id', 'in', valores_odoo_ids]
+                                                            #CONTIENE EL VALOR REAL DEL ATRIBUTO
+                #desde la variante ve a sus lineas de atributos y luego traeme los valores asociados a ese atributo                                       
+                ]],
+                {'limit': 1}
         )
-        return result
+        if result:
+            print('🪀Variante en Odoo ecnontrada')
+            return result
+        else:
+            print('🔍El id del valor ps no esta en Odoo')
+            return None
     except Exception as e:
-        print(f"⚠️ REVISION ({product_template_odoo}):")
+        print(f"❌ Error obteniendo la variante ({valores_odoo_ids})")
         return None
 
 
-def write_variantes_odoo(v,id_v,datos):
+def update_variante(buscar_variante_odoo,datos_variante,nombre, id_combination, valores_odoo_ids):
     try:
         result = config.models.execute_kw(
             config.db,
@@ -203,13 +212,18 @@ def write_variantes_odoo(v,id_v,datos):
             config.password,
             'product.product',
             'write',
-            [[id_v], datos],           
-        )
+            [buscar_variante_odoo, datos_variante]
+    )                        
         if result:
+            print(f"✅ Variante actualizada: {nombre} - ID Odoo: {buscar_variante_odoo[0]}, ID PrestaShop: {id_combination}")
             return result
         else:
-            print(f"❌❌Error al actualizar variante: {id_v}")
+            print(f"❌ Error al actualizar variante {id_combination}")
             return None
     except Exception as e:
-        print(f"⚠️ REVISION ({v})")
+        print(f"❌ Error obteniendo la variante {valores_odoo_ids}")
         return None
+        
+    
+
+
