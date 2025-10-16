@@ -18,10 +18,10 @@ else:
 
 
 #Conexion Odoo
-url = "https://cremas-caseras.odoo.com"
-db = "cremas-caseras"
-username = "bocampo@datamon.es"
-password = "f8c8ee78499c071364dbec8dcdcdb8f9c402b98d"
+url = "https://camassia-test.odoo.com/"
+db = "camassia-test"
+username = "andrea@cremas-caseras.es"
+password =  "6acaeb10034b4f519cc956810b4704c09a5cf7e8"   #"f8c8ee78499c071364dbec8dcdcdb8f9c402b98d"
 
 try:
     common = xmlrpc.client.ServerProxy(f'{url}/xmlrpc/2/common')

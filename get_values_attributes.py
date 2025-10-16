@@ -151,6 +151,72 @@ def get_value_id_odoo(name_value):
 
 
 
+#Verificamos si ya estan los atributos y valores puestos en el modulo 'product.template.attribute.line'
+#Si no existen lo CREAMOS ESAS VARIANTES en el producto
+def search_product_atributos_valores_odoo(upload_odoo, id_attribute_odoo, value_ids_odoo, name_attribute, values_list, nombre):
+    try:
+        existing_line = config.models.execute_kw(
+        config.db, 
+        config.uid, 
+        config.password,
+        'product.template.attribute.line', 
+        'search',
+        [[
+            ['product_tmpl_id', '=', upload_odoo],
+           ['attribute_id', '=', id_attribute_odoo]
+        ]],
+        {'limit': 1}
+        )
+        if not existing_line:
+            config.models.execute_kw(
+                config.db,
+                config.uid,
+                config.password,
+                'product.template.attribute.line',
+                'create',
+                [{
+                    "product_tmpl_id": upload_odoo,
+                    "attribute_id": id_attribute_odoo,
+                    "value_ids": [(6, 0, value_ids_odoo)]
+                }]
+            )
+            print(f"🧩 Atributo '{name_attribute}' con valores {values_list} vinculado al producto {nombre}")
+        else:
+            print(f"ℹ️ Atributo '{name_attribute}' ya existe para el producto {nombre}")    
+    except Exception as e:
+        print(f"❌ Error al crear {e}")
+
+
+
+
+
+#funcion para buscar el id del producto padre de Odoo
+def search_padre_odoo(id_product):
+    try: 
+        result = config.models.execute_kw(
+                config.db,
+                config.uid,
+                config.password,
+                'product.template',
+                'search',
+                [[
+                ['x_studio_p_id', '=', id_product]                                    
+                ]],
+                {'limit': 1}
+        )
+        if result:
+            return result
+        else:
+            print('🔍El id del producto padre no esta en Odoo')
+            return None
+    except Exception as e:
+        print(f"❌ Error obteniendo el id {e}")
+        return None
+
+
+
+
+
 #funcion para buscar el Id prestashop del valor en Odoo    
 def get_value_id_ps_odoo(ps_id):
     try:
@@ -174,7 +240,7 @@ def get_value_id_ps_odoo(ps_id):
         return None
     
 
-
+#Funcion para buscar  
 def search_variant_odoo(upload_odoo, valores_odoo_ids):
     try: 
         result = config.models.execute_kw(
@@ -204,6 +270,52 @@ def search_variant_odoo(upload_odoo, valores_odoo_ids):
 
 
 
+#Funcion para obtener campos del modulo product.template.attribute.value
+def get_product_template_product_attribute_value(id_product_odoo, id_attribute_odoo, value_id_odoo ):
+    try:
+        dominio = [
+                    ['product_tmpl_id', '=', id_product_odoo],
+                    ['attribute_id', '=', id_attribute_odoo],
+                    ['product_attribute_value_id', '=',  value_id_odoo]
+
+        ]
+        result = config.models.execute_kw(
+            config.db,
+            config.uid, 
+            config.password,
+            'product.template.attribute.value', 
+            'search_read',
+            [dominio],
+            {'fields': ['id', 'name', 'price_extra']}
+        )
+        if result:
+            return result
+    except Exception as e:
+        print(f"❌ Error al buscar {e}")
+
+        
+
+
+
+def update_precio_product_attribute_value(id_plantilla, precio):
+    try:
+        result = config.models.execute_kw(
+                config.db,
+                config.uid,
+                config.password,
+                'product.template.attribute.value',
+                'write',
+                [id_plantilla, 
+                 {'price_extra': precio,
+                }] 
+            )
+        if result:
+            return result
+    except Exception as e:
+        print(f"❌ Error al actualizar {e}")
+
+
+
 def update_variante(buscar_variante_odoo,datos_variante,nombre, id_combination, valores_odoo_ids):
     try:
         result = config.models.execute_kw(
@@ -225,6 +337,8 @@ def update_variante(buscar_variante_odoo,datos_variante,nombre, id_combination, 
         return None
         
     
+
+
 
 
 

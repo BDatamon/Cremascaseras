@@ -2,13 +2,14 @@ import config
 import requests
 import base64
 
-from get_combinations import get_combination, get_producto_id_ps_odoo
-from get_values_attributes import get_values, get_attributes, get_id_attribute_odoo,get_value_id_odoo,search_variant_odoo,update_variante
-
+from get_combinations      import get_combination, get_producto_id_ps_odoo
+from sync_categories       import get_category_by_ps_id
+from get_values_attributes import get_values, get_attributes, get_id_attribute_odoo,get_value_id_odoo,search_variant_odoo,update_variante,search_padre_odoo
+from get_values_attributes import get_product_template_product_attribute_value,search_product_atributos_valores_odoo, update_precio_product_attribute_value
 
 def get_products_id(): 
     try:
-        url = f"{config.prestashop_url}/products?output_format=JSON&filter[active]=1"
+        url = f"{config.prestashop_url}/products?output_format=JSON&filter[active]=0"
         auth_tuple = (config.api_key, '')
 
         response = requests.get(url, auth= auth_tuple)
@@ -23,7 +24,6 @@ def get_products_id():
     except Exception as e:
         print(f'❌ Error en get_products: {e}')
         return None
-
 
 
 def get_productos_details(id):
@@ -45,12 +45,9 @@ def get_productos_details(id):
         return None
 
 
-
-
 def get_image(id_img, name):
     try: 
         base_url = config.base_url  # Usar el dominio PrestaShop real
-
         # Construir ruta con dígitos del id_img
         id_str = str(id_img)            #Convierte todo formato a string
         id_path = "/".join(list(id_str))#list():sirve para convertir cualquier objeto iterable (como una cadena, tupla o conjunto) en una lista
@@ -65,15 +62,16 @@ def get_image(id_img, name):
         if imagen_objeto:
             print(f'✅🎉 Imagen de {name} descargada con éxito desde {url_img}')
             return imagen_objeto
-
+        else: 
+            print(f'🔍 No existe imagen para el producto {name}')
+            return None
     except Exception as e:
         print(f"❌ Error al descargar imagen {id_img} de {name}: {e}")
         return None
 
 
 
-
-def create_product_odoo(producto_odoo):
+def create_product_odoo(producto_odoo,nombre, id):
     try:
         product_up = config.models.execute_kw(
                 config.db, 
@@ -87,16 +85,74 @@ def create_product_odoo(producto_odoo):
             print(f"🥏🥏--------------------- Producto creado: {nombre} (ID: {id_product})")
             return product_up
         else:
-            print('❌No se pudo crear el producto')
-        return None
+            print(f'❌_____________No se pudo crear el producto: {nombre} con ID : {id}')
+            return None
 
     except Exception as e:
         print(f"❌ Error al crear {e}")
         return None
     
 
+def search_product_odoo(id_product):
+    try:
+        product = config.models.execute_kw(
+                config.db, 
+                config.uid, 
+                config.password,
+                'product.template', 
+                'search',
+                [[('x_studio_p_id', '=', id_product)]],
+        )
+        if product:
+            print(f"🥏🥏--------------------- ID del producto {nombre} Odoo es:{id_product}")
+            return product[0]
+        else:
+            print(f'❌_____________Producto no esta en Odoo: {nombre} con ID : {id}')
+            return None
 
-#_________________________________________________PRODUCT SYNCHRONIZATION_________________________________________________________________________________
+    except Exception as e:
+        print(f"❌ Error al buscar {e}")
+        return None
+
+
+def update_product(producto_odoo_id, nombre,id_product,referencia, precio_venta, obtener_id_categoria_odoo):
+    try:
+        datos_producto = {
+                            "name": nombre,
+                            "x_studio_p_id": id_product,                
+                            "default_code": referencia,
+                            "list_price": precio_venta,   #precio base igual al de 50ml
+                            "type": "consu",
+                            "purchase_ok": True,
+                            "sale_ok": True,
+                            "uom_id": 1,  # Unidad de medida por defecto (1 = Units)
+                            "currency_id": 125,  # EUR (según el ejemplo)
+                            "categ_id": obtener_id_categoria_odoo
+                        }
+        product_update = config.models.execute_kw(
+                    config.db, 
+                    config.uid, 
+                    config.password,
+                    'product.template', 
+                    'write',
+                    [producto_odoo_id, datos_producto]
+            )
+        if product_update:
+            print(f"🔃🔃🔃🔃🔃🔃🔃🔃🔃🔃🔃🔃🔃🔃🔃 Producto Actualizado: {nombre} (ID: {producto_odoo_id})")
+            return product_update
+        else:
+            print(f'❌_____________No se pudo Actualizar el producto: {nombre} con ID : {producto_odoo_id}')
+            return None
+
+    except Exception as e:
+        print(f"❌ Error al Actualizar {e}")
+        return None
+    
+
+############################
+# PRODUCT SYNCHRONIZATION
+############################
+
 
 subidos=[]
 
@@ -110,20 +166,41 @@ if __name__=="__main__":
             producto_detail = get_productos_details(id_product)
             if producto_detail:
                 nombre = producto_detail.get('name')[0]['value']
-                price_venta = producto_detail.get('price')
-                coste = producto_detail.get('wholesale_price')
-                description = producto_detail.get('description')[0]['value']
+                precio_venta = producto_detail.get('price')
                 referencia =producto_detail.get('reference')
                 peso = producto_detail.get('weight')
+                id_categoria_product = producto_detail.get('id_category_default')
                 #Obtener Id de la IMAGEN que esta dentro del objeto associations
                 field_image = producto_detail.get('associations', {}).get('images')
-                id_image = field_image[0]['id'] if field_image else None
-                imagen_producto = get_image(id_image, nombre)
+                imagen_default = producto_detail.get('id_default_image')
+                #Si hay imagen default se guarda el ID de la imagen en id_image
+                if imagen_default:
+                    id_image = imagen_default
+                #Y si imagen_default es falsa entonces guardamos el id del field_image
+                elif field_image:
+                    id_image = field_image[0].get('id')
+                #Si las dos opciones de arriba son false entonces id_image es igual a none
+                else:
+                    id_image = None
+
+                if id_image:
+                    imagen_producto = get_image(id_image, nombre)
+                else:
+                    print(f"⚠️ Producto {nombre} (ID {id_product}) no tiene ninguna imagen disponible")
+                    imagen_producto = None
             
+                #Traer categoria de de Odoo por medio de prestashop_id
+                obtener_id_categoria_odoo = get_category_by_ps_id(id_categoria_product)
+
+                if not obtener_id_categoria_odoo:
+                    print(f"⚠️ Categoría PS ID {id_categoria_product} no encontrada para '{nombre}'")
+                    obtener_id_categoria_odoo = 1  # Categoría por defecto
+                    print(f"   → Usando categoría por defecto")
 
                 #Mira si tiene COMBINACIONES ese producto y las obtiene
                 name_attribute = None
                 name_value = None
+                id_attribute_odoo = None
                 # Diccionario para agrupar valores por atributo
                 atributos_valores = {}
 
@@ -162,27 +239,27 @@ if __name__=="__main__":
                         "name": nombre,
                         "x_studio_p_id": id_product,                
                         "default_code": referencia,
-                        "list_price": price_venta,
-                        "standard_price": coste,
+                        "list_price": precio_venta,   #precio base igual al de 50ml
                         "type": "consu",
                         "purchase_ok": True,
                         "sale_ok": True,
                         "uom_id": 1,  # Unidad de medida por defecto (1 = Units)
-                        "currency_id": 125,  # EUR (según el ejemplo)
-                        "public_description": str(description),
-                        "available_in_pos": True   
+                        "currency_id": 125,  # EUR (según el ejemplo) 
+                        "categ_id": obtener_id_categoria_odoo  
                     }
                     if imagen_producto:
                             producto_odoo["image_1920"] = imagen_producto
+                    else :
+                        producto_odoo["image_1920"] = False
                     #crear_productos       
-                    upload_odoo = create_product_odoo(producto_odoo)
+                    upload_odoo = create_product_odoo(producto_odoo,nombre, id_product)
                     
                     if upload_odoo:
                         subidos.append(id) #Esto es para contabilizar cuantos productos se han subido
 
 
                         
-                    #AQUI VOY A GUARDAR TODOS LOS ID'S DE ODOO Y SE BUSCAN POR MEDIO DE LOS NOMBRES DE CADA NOMBRE DEL VALOR
+                    #AQUI VOY A GUARDAR TODOS LOS ID'S DE LOS VALORES DE ODOO Y SE BUSCAN POR MEDIO DE LOS NOMBRES DE CADA NOMBRE DEL VALOR
                         for name_attribute, values_list in atributos_valores.items():
                             id_attribute_odoo = get_id_attribute_odoo(name_attribute)
                             value_ids_odoo = []
@@ -194,54 +271,37 @@ if __name__=="__main__":
 
                             if id_attribute_odoo and value_ids_odoo:
                         #Verificamos si ya estan los atributos y valores puestos en el modulo 'product.template.attribute.line'
-                                try:
-                                    existing_line = config.models.execute_kw(
-                                    config.db, 
-                                    config.uid, 
-                                    config.password,
-                                    'product.template.attribute.line', 
-                                    'search',
-                                    [[
-                                        ['product_tmpl_id', '=', upload_odoo],
-                                        ['attribute_id', '=', id_attribute_odoo]
-                                    ]],
-                                    {'limit': 1}
-                                )
-                            #Si no exieten CREAMOS ESAS VARIANTES en el producto
-                                    if not existing_line:
-                                        config.models.execute_kw(
-                                            config.db,
-                                            config.uid,
-                                            config.password,
-                                            'product.template.attribute.line',
-                                            'create',
-                                            [{
-                                                "product_tmpl_id": upload_odoo,
-                                                "attribute_id": id_attribute_odoo,
-                                                "value_ids": [(6, 0, value_ids_odoo)]
-                                            }]
-                                        )
-                                        print(f"🧩 Atributo '{name_attribute}' con valores {values_list} vinculado al producto {nombre}")
-                                except Exception as e:
-                                    print(f"❌ Error al crear {e}")
-                                    break 
+                        #Si no existen lo CREAMOS ESAS VARIANTES en el producto
+                                atributos_valores_producto_odoo = search_product_atributos_valores_odoo(upload_odoo, id_attribute_odoo, value_ids_odoo, name_attribute, values_list, nombre)
+
                 else:
                     print(f'🔍🔍 El producto {nombre} ya existe en Odoo')
+                    producto_odoo_id = search_product_odoo(id_product)
+                    #Actualizamos el producto
+                    Actualizar_producto = update_product(producto_odoo_id,nombre,id_product,referencia,precio_venta,obtener_id_categoria_odoo)
+                    
+                    
+
+
+
+
 
 ##############################
 # ACTUALIZAR VARIANTES
 # ############################
 
-
+            
             if existe_combination != 0:
                     combinations = producto_detail.get('associations').get('combinations', [])
                     for combination in combinations:              #2. for es para combinaciones                            
-                        id_combination = combination.get('id')
-                        obtener_combination = get_combination(id_combination)
-                        
+                        id_combination = combination.get('id')                        
+                        datos_combination = get_combination(id_combination)
+                        id_product = datos_combination.get('id_product')
 
-                        product_option_values = obtener_combination.get('associations', {}).get('product_option_values', [])
-                
+                        #buscamos si el producto padre ya esta de alta en Odoo por medio del prestashop_id
+                        id_padre_odoo = search_padre_odoo(id_product )
+
+                        product_option_values = datos_combination.get('associations', {}).get('product_option_values', [])
                         # Lista para guardar los IDs de valores en Odoo
                         valores_odoo_ids = []
                 
@@ -255,29 +315,45 @@ if __name__=="__main__":
                             if value_id_odoo:
                                 valores_odoo_ids.append(value_id_odoo)
                 
-                        # Ahora buscamos la variante en Odoo que tenga EXACTAMENTE estos valores
+                        # Ahora buscamos la variante en Odoo(product.product) que tenga EXACTAMENTE estos valores
                         if valores_odoo_ids: 
-                            buscar_variante_odoo = search_variant_odoo(upload_odoo, valores_odoo_ids)   
-                
+                            buscar_variante_odoo = search_variant_odoo(id_padre_odoo, valores_odoo_ids)
+                            
+                            #Buscamos el Id Odoo de la variante para luego pasarle ese valor a la plantilla product.template
+                            if id_attribute_odoo == None:
+                                id_attribute_odoo = get_id_attribute_odoo(name_attribute)
+
+
+                            #Obtenemos la plantilla (product.template) exactamente en el product.template.attribute.value por medio de su respectivo valor y nos traemos campos    
+                            plantilla_product_attribute_value = get_product_template_product_attribute_value(id_padre_odoo, id_attribute_odoo, valores_odoo_ids)
+                            #Obtenemos el id de esa unica plantilla
+                            if plantilla_product_attribute_value:
+                                id_plantilla = plantilla_product_attribute_value[0]['id']
+                                #Obtenemos en presta el precio de esa combinacion
+                                precio_combinacion = datos_combination.get('price')
+                                #Y ahora si, modificamos  
+                                modificar_precio_product_attribute_value = update_precio_product_attribute_value(id_plantilla, precio_combinacion)
+                            else:
+                                print(f"No se encontro plantilla del producto: {nombre}")
                     
                             if buscar_variante_odoo:
                                 # Preparar los datos de la combinación de PrestaShop
                                 datos_variante = {
-                                    'lst_price': float(obtener_combination.get('price', 0)),  # Precio
-                                    'weight': float(obtener_combination.get('weight', 0)),    # Peso
-                                    'barcode': obtener_combination.get('ean13', ''),          # Código de barras
-                                    'x_studio_ps_id': id_combination,                          # ID de PrestaShop
-                                    'default_code': obtener_combination.get('reference', '')  # Referencia
+                                    'weight': datos_combination.get('weight'),     # Peso
+                                    'barcode': datos_combination.get('ean13', ''), # Código de barras
+                                    'x_studio_ps_id': id_combination,              # ID de PrestaShop
+                                    'default_code': datos_combination.get('reference', '')  # Referencia
                                 }
                         
                                 # Actualizar la variante en Odoo
                                 actualizada_variante = update_variante(buscar_variante_odoo,datos_variante,nombre, id_combination, valores_odoo_ids)
                                 if actualizada_variante:
-                                    print("🧩 Se actualizo la variante correctamente")
+                                    print("🔃🔃 Se actualizo la variante correctamente")
 
                             else:
                                 print(f"⚠️ No se encontró variante en Odoo para combinación {id_combination}")
-                         
+                        else:
+                            print(f"⚠️revisar variante en Odoo para la combinacion {id_combination}") 
 print(f"🎊🎉Proceso terminado: Productos creados en Odoo {len(subidos)}")
 
 
