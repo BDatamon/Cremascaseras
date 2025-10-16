@@ -21,7 +21,7 @@ else:
 url = "https://cremas-caseras.odoo.com"
 db = "cremas-caseras"
 username = "bocampo@datamon.es"
-password = "21b7df0c9bb75f8231665fb86688da96ed70a0ac"
+password = "f8c8ee78499c071364dbec8dcdcdb8f9c402b98d"
 
 try:
     common = xmlrpc.client.ServerProxy(f'{url}/xmlrpc/2/common')

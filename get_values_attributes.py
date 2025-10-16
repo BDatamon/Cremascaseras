@@ -175,7 +175,6 @@ def get_value_id_ps_odoo(ps_id):
     
 
 
-
 def search_variant_odoo(upload_odoo, valores_odoo_ids):
     try: 
         result = config.models.execute_kw(
@@ -194,7 +193,7 @@ def search_variant_odoo(upload_odoo, valores_odoo_ids):
                 {'limit': 1}
         )
         if result:
-            print('🪀Variante en Odoo ecnontrada')
+            print('🪀Variante en Odoo encontrada')
             return result
         else:
             print('🔍El id del valor ps no esta en Odoo')
@@ -202,6 +201,7 @@ def search_variant_odoo(upload_odoo, valores_odoo_ids):
     except Exception as e:
         print(f"❌ Error obteniendo la variante ({valores_odoo_ids})")
         return None
+
 
 
 def update_variante(buscar_variante_odoo,datos_variante,nombre, id_combination, valores_odoo_ids):
@@ -225,5 +225,10 @@ def update_variante(buscar_variante_odoo,datos_variante,nombre, id_combination, 
         return None
         
     
+
+
+
+
+
 
 
