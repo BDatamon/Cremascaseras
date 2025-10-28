@@ -216,28 +216,111 @@ def make_traduction(nombre, nombre_a, upload_odoo):
         return None
 
 
+def get_supplier_ps_by_id(id):
+    try:
+        url = f"{config.prestashop_url}/suppliers/{id}?output_format=JSON"
+        auth_tuple = (config.api_key, '')
+
+        response = requests.get(url, auth= auth_tuple)
+        
+        if response.status_code == 200:
+            data = response.json()
+            supplier = data.get('supplier', [])
+            name = supplier.get('name')            
+            return name
+        else:
+            print(f"🔍No existe supplier en este producto {response.status_code}")
+    except Exception as e:
+        print(f'❌ get_supplier_ps_by_id: {e}')
+        return None
+
+
+def search_supplier_odoo_by_name(name, nombre):
+    try:
+        existe_contacto = config.models.execute_kw(
+                config.db, 
+                config.uid, 
+                config.password,
+                'res.partner', 
+                'search',
+                [[("name", '=', name)]],
+                {'limit': 1}
+            )
+        if existe_contacto:
+            config.models.execute_kw(
+                config.db, 
+                config.uid, 
+                config.password,
+                'res.partner', 
+                'write',
+                [existe_contacto, 
+                 {'name': name,
+                }] 
+            )
+            print(f'🔃🔃🔃🔃🔃🔃🔃 existe proveedor en Odoo se Actualizo {existe_contacto}')
+            return existe_contacto    
+        else:
+            create = config.models.execute_kw(
+                config.db, 
+                config.uid, 
+                config.password,
+                'res.partner', 
+                'create',
+                [{'name': name }]
+            )
+            print(f"✅✅✅✅Se creo proveedor en Odoo {create}")
+            return create        
+    except Exception as e:
+        print(f"❌ Error en el conjunto de operaciones del proveedor, del producto {nombre} {e}")
+        return None
+
+
+def search_product_add_suppliers(upload_odoo, supplier_odoo):
+    try:        
+        values = config.models.execute_kw(
+            config.db,
+            config.uid,
+            config.password,
+            'product.supplierinfo',
+            'create',
+            [{
+                "product_tmpl_id": upload_odoo,    
+                "partner_id": supplier_odoo
+            }]
+        )
+        if values:
+            print(f"✅✅Se aherio el supplier al producto")
+            return values
+        else:
+            print(f"⚠️⚠️No se pudo aherir el proveedo al producto")    
+    except Exception as e:
+        print(f"❌ Error al crear {e}")
+
+
 ############################
 # PRODUCT SYNCHRONIZATION
 ############################
 
 
 subidos=[]
+id_product = 1269
 
 if __name__=="__main__":
-    #Obtener IDs de PRODUCTOS
-    productos_id = get_products_id()
-    if productos_id:
-        for id in productos_id:                               #1. for es para productos
-            id_product = id.get('id')
+    # #Obtener IDs de PRODUCTOS
+    # productos_id = get_products_id()
+    # if productos_id:
+    #     for id in productos_id:                               #1. for es para productos
+    #         id_product = id.get('id')
             producto_detail = get_productos_details(id_product)
             if producto_detail:
                 nombre = producto_detail.get('name')[0]['value'].rstrip()
                 #ALEMAN
-                nombre_a = producto_detail.get('name')[1]['Value'].strip()                
+                nombre_a = producto_detail.get('name')[1]['value'].strip()                
                 precio_venta = producto_detail.get('price')
                 referencia =producto_detail.get('reference').rstrip()
                 peso = producto_detail.get('weight')
                 barcode = producto_detail.get('ean13')
+                supplier = producto_detail.get('id_supplier')
                 id_categoria_product = producto_detail.get('id_category_default')
                 #Obtener Id de la IMAGEN que esta dentro del objeto associations
                 field_image = producto_detail.get('associations', {}).get('images')
@@ -268,7 +351,11 @@ if __name__=="__main__":
                 if id_categoria_product == 81:
                     obtener_id_categoria_odoo = 209
 
-
+                #Creamos, Actualizamos los suppliers en caso que hallan
+                if supplier != "0":
+                    nombre_supplier = get_supplier_ps_by_id(supplier)
+                    #Buscamos en el res.partner x nombre si no esta lo creamos, si esta lo actualizamos
+                    supplier_odoo = search_supplier_odoo_by_name(nombre_supplier, nombre )
 
                 #Mira si tiene COMBINACIONES ese producto y las obtiene
                 name_attribute = None
@@ -337,6 +424,7 @@ if __name__=="__main__":
                         #TRADUCCION
                         traduccion = make_traduction(nombre, nombre_a, upload_odoo)
 
+
                         #AQUI VOY A GUARDAR TODOS LOS ID'S DE LOS VALORES DE ODOO Y SE BUSCAN POR MEDIO DE LOS NOMBRES DE CADA NOMBRE DEL VALOR
                         for name_attribute, values_list in atributos_valores.items():
                             id_attribute_odoo = get_id_attribute_odoo(name_attribute)
@@ -351,7 +439,11 @@ if __name__=="__main__":
                                 #Verificamos si ya estan los atributos y valores puestos en el modulo 'product.template.attribute.line'
                                 #Si no existen lo CREAMOS ESAS VARIANTES en el producto
                                 atributos_valores_producto_odoo = search_product_atributos_valores_odoo(upload_odoo, id_attribute_odoo, value_ids_odoo, name_attribute, values_list, nombre)
-                                
+                                #Agregarle el proveedor al producto
+                                if supplier != "0":
+                                    supplier_odoo_id = supplier_odoo[0] if isinstance(supplier_odoo, list) else supplier_odoo
+                                    proveedores_producto_odoo       = search_product_add_suppliers(upload_odoo, supplier_odoo_id)
+                                    
                         #Actualizar producto sin variante product.product
                         if existe_combination == 0:
                                 obtener_id_product_product = get_product_product(upload_odoo)
