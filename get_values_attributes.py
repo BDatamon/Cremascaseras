@@ -168,7 +168,7 @@ def search_product_atributos_valores_odoo(upload_odoo, id_attribute_odoo, value_
         {'limit': 1}
         )
         if not existing_line:
-            config.models.execute_kw(
+            values = config.models.execute_kw(
                 config.db,
                 config.uid,
                 config.password,
@@ -181,6 +181,7 @@ def search_product_atributos_valores_odoo(upload_odoo, id_attribute_odoo, value_
                 }]
             )
             print(f"🧩 Atributo '{name_attribute}' con valores {values_list} vinculado al producto {nombre}")
+            return values
         else:
             print(f"ℹ️ Atributo '{name_attribute}' ya existe para el producto {nombre}")    
     except Exception as e:
@@ -333,7 +334,7 @@ def update_variante(buscar_variante_odoo,datos_variante,nombre, id_combination, 
             print(f"❌ Error al actualizar variante {id_combination}")
             return None
     except Exception as e:
-        print(f"❌ Error obteniendo la variante {valores_odoo_ids}")
+        print(f"❌ Error al Actualizar la variante : {id_combination} ,   {e}")
         return None
         
     

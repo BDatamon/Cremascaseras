@@ -18,16 +18,19 @@ else:
 
 
 #Conexion Odoo
-url = "https://camassia-test.odoo.com/"
-db = "camassia-test"
-username = "andrea@cremas-caseras.es"
-password =  "6acaeb10034b4f519cc956810b4704c09a5cf7e8"   #"f8c8ee78499c071364dbec8dcdcdb8f9c402b98d"
+url = "https://cremascaseras-test.odoo.com/"
+db =       "cremascaseras-test"
+username = "bocampo@datamon.es"
+password = "8b80a8d85d948f73708f01d43910651f9b8bb382"
 
 try:
     common = xmlrpc.client.ServerProxy(f'{url}/xmlrpc/2/common')
     uid = common.authenticate(db, username, password, {})
     models = xmlrpc.client.ServerProxy(f'{url}/xmlrpc/2/object')
-    print(f"✅ Conexión a Odoo exitosa. Usuario ID: {uid}")
+    if uid:
+        print(f"✅ Conexión a Odoo exitosa. Usuario ID: {uid}")
+    else:
+        print(f"❌ No hay conexion revisa las credenciales: {uid}")
 except Exception as e:
     print(f"❌ Error de conexión: {e}")
     exit()

@@ -193,6 +193,29 @@ def update_product_product(id, id_product, peso, barcode, referencia):
         return None
 
 
+def make_traduction(nombre, nombre_a, upload_odoo):
+    try:
+        traduction = config.models.execute_kw(
+                config.db, 
+                config.uid, 
+                config.password,
+                'product.template', 
+                'update_field_translations',
+                [[(upload_odoo)], "name",
+                    {
+                    'es_ES': nombre,
+                    'de_DE': nombre_a
+                }]
+            )
+        if traduction:
+            return traduction
+        else:
+            return None
+    except Exception as e:
+        print(f"❌ Error al buscar {e}")
+        return None
+
+
 ############################
 # PRODUCT SYNCHRONIZATION
 ############################
@@ -209,6 +232,8 @@ if __name__=="__main__":
             producto_detail = get_productos_details(id_product)
             if producto_detail:
                 nombre = producto_detail.get('name')[0]['value'].rstrip()
+                #ALEMAN
+                nombre_a = producto_detail.get('name')[1]['Value'].strip()                
                 precio_venta = producto_detail.get('price')
                 referencia =producto_detail.get('reference').rstrip()
                 peso = producto_detail.get('weight')
@@ -301,6 +326,7 @@ if __name__=="__main__":
                     else :
                         producto_odoo["image_1920"] = False
 
+                    list_codebar = []
                     ##############################
                     # CREAMOS PRODUCTO
                     ##############################       
@@ -308,6 +334,8 @@ if __name__=="__main__":
                     
                     if upload_odoo:
                         subidos.append(id) #Esto es para contabilizar cuantos productos se han subido
+                        #TRADUCCION
+                        traduccion = make_traduction(nombre, nombre_a, upload_odoo)
 
                         #AQUI VOY A GUARDAR TODOS LOS ID'S DE LOS VALORES DE ODOO Y SE BUSCAN POR MEDIO DE LOS NOMBRES DE CADA NOMBRE DEL VALOR
                         for name_attribute, values_list in atributos_valores.items():
@@ -382,16 +410,20 @@ if __name__=="__main__":
                                         barcode = ''
                                         if len(str(datos_barcode)) > 1:
                                             barcode = datos_barcode
+                                            list_codebar.append(barcode)
+                                            if barcode in list_codebar:
+                                                barcode = False
                                         else: 
                                             barcode = False
+
                                         # Preparar los datos de la combinación de PrestaShop
                                         datos_variante = {
-                                            'weight': datos_combination.get('weight'),               # Peso
-                                            'barcode': barcode,           # Código de barras
-                                            'x_studio_ps_id': id_combination,                        # ID de PrestaShop
+                                            'weight': datos_combination.get('weight'),                        # Peso
+                                            'barcode': barcode,                                               # Código de barras
+                                            'x_studio_ps_id': id_combination,                                 # ID de PrestaShop
                                             'default_code': datos_combination.get('reference', '').rstrip()   # Referencia
                                         }
-                                
+
                                         # Actualizar la variante en Odoo
                                         actualizada_variante = update_variante(buscar_variante_odoo,datos_variante,nombre, id_combination, valores_odoo_ids)
                                         # Y actualizamos el product.template para que conserve la referencia despues de que se actualiza los atributos del producto padre
@@ -490,7 +522,7 @@ if __name__=="__main__":
                                         'weight': datos_combination.get('weight'),     # Peso
                                         'barcode': barcode, # Código de barras
                                         'x_studio_ps_id': id_combination,              # ID de PrestaShop
-                                        'default_code': datos_combination.get('reference', '')  # Referencia
+                                        'default_code': datos_combination.get('reference', '').rstrip()  # Referencia
                                     }                           
                                     # Actualizar la variante en Odoo
                                     actualizada_variante = update_variante(buscar_variante_odoo,datos_variante,nombre, id_combination, valores_odoo_ids)
