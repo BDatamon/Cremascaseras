@@ -114,7 +114,7 @@ def search_product_odoo(id_product):
         return None
 
 
-def update_product(producto_odoo_id, nombre,id_product,referencia, precio_venta, obtener_id_categoria_odoo):
+def update_product(producto_odoo_id, nombre,id_product,referencia, precio_venta, obtener_id_categoria_odoo, coste):
     try:
         datos_producto = {
                             "name": nombre,
@@ -127,6 +127,7 @@ def update_product(producto_odoo_id, nombre,id_product,referencia, precio_venta,
                             "uom_id": 1,  # Unidad de medida por defecto (1 = Units)
                             "currency_id": 125,  # EUR (según el ejemplo)
                             "categ_id": obtener_id_categoria_odoo,
+                            'standard_price': coste,
                             'is_storable': True
                         }
         product_update = config.models.execute_kw(
@@ -168,7 +169,7 @@ def get_product_product(upload_odoo):
         return None
 
 
-def update_product_product(id, id_product, peso, barcode, referencia):
+def update_product_product(id, id_product, peso, barcode, referencia, coste):
     try:
         product = config.models.execute_kw(
                 config.db, 
@@ -182,6 +183,7 @@ def update_product_product(id, id_product, peso, barcode, referencia):
                     'weight': peso,
                     'barcode': barcode, 
                     'default_code': referencia,
+                    'standard_price': coste
                 }]
             )
         if product:
@@ -303,14 +305,14 @@ def search_product_add_suppliers(upload_odoo, supplier_odoo):
 
 
 subidos=[]
-id_product = 1269
+
 
 if __name__=="__main__":
-    # #Obtener IDs de PRODUCTOS
-    # productos_id = get_products_id()
-    # if productos_id:
-    #     for id in productos_id:                               #1. for es para productos
-    #         id_product = id.get('id')
+    #Obtener IDs de PRODUCTOS
+    productos_id = get_products_id()
+    if productos_id:
+        for id in productos_id:                               #1. for es para productos
+            id_product = id.get('id')
             producto_detail = get_productos_details(id_product)
             if producto_detail:
                 nombre = producto_detail.get('name')[0]['value'].rstrip()
@@ -322,6 +324,7 @@ if __name__=="__main__":
                 barcode = producto_detail.get('ean13')
                 supplier = producto_detail.get('id_supplier')
                 id_categoria_product = producto_detail.get('id_category_default')
+                coste = producto_detail.get('wholesale_price')
                 #Obtener Id de la IMAGEN que esta dentro del objeto associations
                 field_image = producto_detail.get('associations', {}).get('images')
                 imagen_default = producto_detail.get('id_default_image')
@@ -341,15 +344,16 @@ if __name__=="__main__":
                     print(f"⚠️ Producto {nombre} (ID {id_product}) no tiene ninguna imagen disponible")
                     imagen_producto = None
             
-                #Traer categoria de de Odoo por medio de prestashop_id
+                #Traer categoria de Odoo por medio de prestashop_id
                 obtener_id_categoria_odoo = get_category_by_ps_id(id_categoria_product)
                 if not obtener_id_categoria_odoo:
                     print(f"⚠️ Categoría PS ID {id_categoria_product} no encontrada para '{nombre}'")
-                    obtener_id_categoria_odoo = 1  # Categoría por defecto
+                    obtener_id_categoria_odoo = 1  # Categoría por defecto                    
                     print(f"   → Usando categoría por defecto")
+                    if id_categoria_product == 81:
+                        obtener_id_categoria_odoo = 209
 
-                if id_categoria_product == 81:
-                    obtener_id_categoria_odoo = 209
+                
 
                 #Creamos, Actualizamos los suppliers en caso que hallan
                 if supplier != "0":
@@ -375,6 +379,7 @@ if __name__=="__main__":
 
                         #Mira si tiene VALORES y las obtiene por producto
                         product_option_values = obtener_combination.get('associations', {}).get('product_option_values', [])
+                        coste_combination     = obtener_combination.get('wholesale_price')
                         for value in product_option_values:        #3. for es para valores
                             value_id = value.get('id')
                             obtener_value = get_values(value_id)
@@ -406,7 +411,8 @@ if __name__=="__main__":
                         "uom_id": 1,  # Unidad de medida por defecto (1 = Units)
                         "currency_id": 125,  # EUR (según el ejemplo) 
                         "categ_id": obtener_id_categoria_odoo,
-                        'is_storable': True  
+                        'is_storable': True,
+                        'standard_price':coste 
                     }
                     if imagen_producto:
                             producto_odoo["image_1920"] = imagen_producto
@@ -513,6 +519,7 @@ if __name__=="__main__":
                                             'weight': datos_combination.get('weight'),                        # Peso
                                             'barcode': barcode,                                               # Código de barras
                                             'x_studio_ps_id': id_combination,                                 # ID de PrestaShop
+                                            'standard_price':coste_combination,                               # Coste combinacion                   
                                             'default_code': datos_combination.get('reference', '').rstrip()   # Referencia
                                         }
 
@@ -539,12 +546,12 @@ if __name__=="__main__":
                     print(f'🔍🔍 El producto {nombre} ya existe en Odoo')
                     producto_odoo_id = search_product_odoo(id_product)
                     #Actualizamos el producto
-                    Actualizar_producto = update_product(producto_odoo_id,nombre,id_product,referencia,precio_venta,obtener_id_categoria_odoo)
+                    Actualizar_producto = update_product(producto_odoo_id,nombre,id_product,referencia,precio_venta,obtener_id_categoria_odoo, coste)
                     
                     #Actualizar productos sin variantes product.product
                     if existe_combination == 0:
                                 obtener_id_product_product = get_product_product(producto_odoo_id)
-                                actualizar_product_product = update_product_product(obtener_id_product_product, id_product, peso, barcode, referencia)
+                                actualizar_product_product = update_product_product(obtener_id_product_product, id_product, peso, barcode, referencia, coste_combination)
 
 
                     ##############################
@@ -559,7 +566,16 @@ if __name__=="__main__":
                             #  Usamos el ID del producto existente
                             id_padre_odoo = producto_odoo_id
 
-                            product_option_values = datos_combination.get('associations', {}).get('product_option_values', [])
+                            product_option_values      = datos_combination.get('associations', {}).get('product_option_values', [])
+                            referencia_variante_update = datos_combination.get('reference', '').rstrip()
+                            coste_combination_update   = datos_combination.get('wholesale_price')
+                            if coste_combination_update != "0.000000":
+                                print("🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥")
+                                print("🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥")
+                                print("🔥🔥🔥coste diferente de 0🔥🔥🔥")
+                                print("🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥")
+                                print("🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥")
+                                print("🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥")
                             # Lista para guardar los IDs de valores en Odoo
                             valores_odoo_ids = []
                     
@@ -606,15 +622,16 @@ if __name__=="__main__":
                                     datos_barcode = datos_combination.get('ean13')
                                     barcode = ''
                                     if len(str(datos_barcode)) > 1:
-                                        barcode = datos_barcode
+                                        barcode = str(datos_barcode) + "@" + referencia_variante_update
                                     else: 
                                         barcode = False
                                     # Preparar los datos de la combinación de PrestaShop
                                     datos_variante = {
-                                        'weight': datos_combination.get('weight'),     # Peso
-                                        'barcode': barcode, # Código de barras
-                                        'x_studio_ps_id': id_combination,              # ID de PrestaShop
-                                        'default_code': datos_combination.get('reference', '').rstrip()  # Referencia
+                                        'weight': datos_combination.get('weight'),                      # Peso
+                                        'barcode': barcode,                                             # Código de barras
+                                        'x_studio_ps_id': id_combination,                               # ID de PrestaShop
+                                        'standard_price': coste_combination_update,     # Costo de la combinacion
+                                        'default_code': referencia_variante_update      # Referencia
                                     }                           
                                     # Actualizar la variante en Odoo
                                     actualizada_variante = update_variante(buscar_variante_odoo,datos_variante,nombre, id_combination, valores_odoo_ids)
