@@ -135,6 +135,7 @@ def get_id_attribute_odoo(name):
 #funcion para obtener el id odoo de cada valor por medio del nombre del valor
 def get_value_id_odoo(name_value):
     try:
+        
         result = config.models.execute_kw(
             config.db,
             config.uid,

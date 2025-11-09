@@ -4,7 +4,7 @@ import requests
 
 def get_orders_ps(): 
     try:
-        url = f"{config.prestashop_url}/orders?output_format=JSON&display=full&filter[date_add]=[2025-10-23%2000:00:00,2025-10-24%2000:00:00]&date=1"
+        url = f"{config.prestashop_url}/orders?output_format=JSON&display=full&filter[date_add]=[2025-10-23%2000:00:00,2025-10-23%2000:00:00]&date=1"
         auth_tuple = (config.api_key, '')
 
         response = requests.get(url, auth= auth_tuple)
@@ -212,15 +212,66 @@ def search_order_odoo_by_ps_id(id):
         return None
 
 
+def get_product_odoo_by_id(product_id, combinacion):
+    try:
+        #1. Busqueda por el producto padre
+        domain = [['x_studio_ps_id', '=', combinacion]]
+        existing_product = config.models.execute_kw(config.db,
+            config.uid, 
+            config.password,
+            'product.product', 
+            'search', 
+            [domain], 
+            {'limit': 1}
+            )
+        if existing_product:
+            return existing_product
+        else:
+            domain = [['x_studio_p_id', '=', product_id]]
+            existing_product = config.models.execute_kw(config.db,
+            config.uid, 
+            config.password,
+            'product.product', 
+            'search', 
+            [domain], 
+            {'limit': 1}
+            )
+        if existing_product:
+            return existing_product        
+    except Exception as e:
+        print(f'❌ get_product_odoo_by_id: {e}')
+        return None
+    
 
+def odoo_send_chat(message):
+    try:
+        # Enviar mensaje al canal
+        message_id = config.models.execute_kw(
+            config.db,
+            config.uid,
+            config.password,
+            'discuss.channel',
+            'message_post',
+            [gc_canal_log],
+            {
+                'body': message,
+                'message_type': 'comment',
+                'subtype_xmlid': 'mail.mt_comment',
+            }
+        )
+        return message_id
+    except Exception as e:
+        print(f"Error al enviar mensaje: {e}")
+        return None
 #_________________________________________ORDERS________________________________________________
-
+gc_canal_log    = [10]
 obtener_ordenes = get_orders_ps()
 if obtener_ordenes:
+    pedidos_cargados = 0
     for id in obtener_ordenes:
         id_orden = id.get('id')
-
-        #1. Buscamos el pedido si ya esta en Odoo
+        producto_no_encontrado = False # <---Bandera
+        #1. Buscamos si el pedido ya esta en Odoo
         id_pedido_ps = search_order_odoo_by_ps_id(id_orden)
         #Si el pedido no esta: haremos el flujo de todo lo que representa la creacion del pedido 
         if not id_pedido_ps:
@@ -278,35 +329,69 @@ if obtener_ordenes:
                         'vat':        vat
                 }    
                     subir_cliente_odoo = create_client_odoo(datos_odoo)
+                    if subir_cliente_odoo:
+                        cliente_Odoo = [subir_cliente_odoo]
                 else:
                     actualizar_cliente = update_client(cliente_Odoo)
 
                 
                 #Lectura de los productos de las lineas del pedido
+                order_lines_ps = []
                 for linea in lineas_productos:
-                    product_id          =  linea.get('id')                     #Producto padre
+                    product_id          =  linea.get('product_id')             #Producto padre
                     combinacion         = linea.get('product_attribute_id')    #Producto Combinacion
-                    cantidad            = linea.get('product_quantity')        #Cantidad
+                    cantidad            = linea.get('product_quantity', 1)     #Cantidad
                     nombre_producto     = linea.get('product_name')            #Producto Nombre
                     referencia_product  = linea.get('product_reference')       #Producto referencia
                     referencia_product  = linea.get('product_ean13": ')        #Codebar
+                    price               = linea.get('product_price', 0.0)      #Precio unitario
 
                     #por cada linea buscar ese producto por ID PRESTASHOP o referencia 
-                    #el ID del producto ODOO
-                    obtener_producto = get_product_odoo_by
-                    
+                    #el ID del producto ODOO 
+                    obtener_producto_odoo = get_product_odoo_by_id(product_id, combinacion)
+                    if obtener_producto_odoo:
+                       #preparar las lineas dentro del pedido
+                        order_lines_ps.append({
+                                'product_uom_qty':  cantidad,
+                                'price_unit':       float(price),
+                                'name':             nombre_producto,
+                                'product_id':       obtener_producto_odoo[0]
+                        })
+                        msg_log = f"✅🆙 {nombre_producto} - {product_id } - {combinacion}"
+                        mensaje_canal = odoo_send_chat(msg_log)
+                    #Si no encuentro el producto:   
+                    else:
+                        producto_no_encontrado = True
+                        order_lines_ps.append({
+                                'product_uom_qty':  cantidad,
+                                'price_unit':       float(price),
+                                'name':             nombre_producto
+                        })
+                        msg_log = f"❌ {nombre_producto} - {product_id } - {combinacion}"
+                        mensaje_canal = odoo_send_chat(msg_log)
+                    #3. Crear el pedido en Odoo
+                if producto_no_encontrado:
+                    estado_pedido = 'draft' 
+                else:
+                    estado_pedido = 'sale'   
+                od_sales_order = {
+                    'partner_id':          cliente_Odoo[0],
+                    'client_order_ref':    referencia,
+                    'order_line':          [(0, 0, vals) for vals in order_lines_ps],  #lineas
+                    'x_studio_p_id':       id_orden,
+                    'require_signature':   False,
+                    'team_id':             1,
+                    'x_studio_p_total':    total_paid_taxes,
+                    'state':               estado_pedido                    
+                }   
+                new_order_id = config.models.execute_kw(config.db, config.uid, config.password, 'sale.order', 'create', [od_sales_order])
+                if new_order_id:
+                    pedidos_cargados = pedidos_cargados + 1
+                    print(f"🛒 Pedido creado en Odoo con ID: {new_order_id} del pedido PrestaShop ID: {id_orden}")
+        else:
+            print(f"🔭 El pedido ya existe en Odoo con ID: {id_pedido_ps} del pedido PrestaShop ID: {id_orden}")
+print(f'🧩🆙👤🪀 Se cargaron {pedidos_cargados} pedidos a Odoo satisfactoriamente')
 
-
-
-
-
-
-
-       
-
-
-            # if lineas_productos:
-            #     for linea_producto in lineas_productos:   
 
 
 
