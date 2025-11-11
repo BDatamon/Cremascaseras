@@ -4,7 +4,7 @@ import requests
 
 def get_orders_ps(): 
     try:
-        url = f"{config.prestashop_url}/orders?output_format=JSON&display=full&filter[date_add]=[2025-10-23%2000:00:00,2025-10-23%2000:00:00]&date=1"
+        url = f"{config.prestashop_url}/orders/351485?output_format=JSON&display=full"                          #/orders?output_format=JSON&display=full&filter[date_add]=[2025-10-29%2000:00:00,2025-10-30%2000:00:00]&date=1"
         auth_tuple = (config.api_key, '')
 
         response = requests.get(url, auth= auth_tuple)
@@ -263,6 +263,8 @@ def odoo_send_chat(message):
     except Exception as e:
         print(f"Error al enviar mensaje: {e}")
         return None
+
+
 #_________________________________________ORDERS________________________________________________
 gc_canal_log    = [10]
 obtener_ordenes = get_orders_ps()
@@ -295,6 +297,9 @@ if obtener_ordenes:
                     address1 = direccion.get('address1')
                     address2 = direccion.get('address2')
                     vat =      direccion.get('vat_number')
+                    #condicion vat si contiene formato incorrecto
+                    vat_filtrado = vat.replace(" ","")
+                    vat_procesado = "" if vat_filtrado.strip().isalpha() else vat_filtrado
                     id_pais =  direccion.get('id_country')
                     obtener_pais = get_country(id_pais)
                     if obtener_pais:
@@ -326,7 +331,8 @@ if obtener_ordenes:
                         'city':       ciudad,
                         'zip':        postcode,
                         'country_id': id_pais_odoo[0],
-                        'vat':        vat
+                        'vat':        vat_procesado,
+                
                 }    
                     subir_cliente_odoo = create_client_odoo(datos_odoo)
                     if subir_cliente_odoo:
