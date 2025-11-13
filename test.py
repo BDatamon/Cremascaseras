@@ -1,10 +1,11 @@
 import config
 import requests
+import re
 
 
 def get_orders_ps(): 
     try:
-        url = f"{config.prestashop_url}/orders?output_format=JSON&display=full&filter[date_add]=[2025-11-09%2000:00:00,2025-11-10%2000:00:00]&date=1"
+        url = f"{config.prestashop_url}/orders?output_format=JSON&display=full&filter[date_add]=[2025-11-06%2000:00:00,2025-11-07%2000:00:00]&date=1"                       
         auth_tuple = (config.api_key, '')
 
         response = requests.get(url, auth= auth_tuple)
@@ -152,8 +153,8 @@ def update_client(cliente):
                     'street2':    address2,
                     'city':       ciudad,
                     'zip':        postcode,
-                    'country_id': name_country,
-                    'vat':        vat
+                    'country_id': id_pais_odoo[0],                    
+                    'vat':        vat_procesado
         }
         existing_client = config.models.execute_kw(
             config.db, 
@@ -294,6 +295,28 @@ def search_tag_odoo_by_name(metodo_pago):
         return None
     
 
+#########FUNCION DE PRUEBA#######
+def get_order_detail_odoo(new_order_id):
+    try:
+        order = config.models.execute_kw(
+            config.db,
+            config.uid,
+            config.password,
+            'sale.order',
+            'read',
+            [[new_order_id]],
+            {'fields': ['name', 'x_studio_p_total', 'partner_id', 'amount_total']}
+        )
+        if order:
+            print(f"🎉🎉 Detalle de la orden en Odoo ID: {new_order_id}")
+            return order
+        else:
+            print(f"❌❌Error orden en Odoo {new_order_id}")
+    except Exception as e:
+        print(f'❌ Error en get_order_detail_odoo: {e}')
+        return None
+#################################
+
 
 #_________________________________________ORDERS________________________________________________
 gc_canal_log    = [10]
@@ -332,13 +355,19 @@ if obtener_ordenes:
                     vat =      direccion.get('vat_number')
                     #condicion vat si contiene formato incorrecto
                     vat_filtrado = vat.replace(" ","")
-                    vat_procesado = "" if vat_filtrado.strip().isalpha() else vat_filtrado
+                    vat_limpio = re.sub(r'[^A-Za-z0-9]', '', vat_filtrado)
+                    vat_final = vat_limpio[:13]
+                    tiene_numero = any(char.isdigit() for char in vat_final)
+                    vat_procesado =  vat_final if tiene_numero else False
+    
                     id_pais =  direccion.get('id_country')
                     obtener_pais = get_country(id_pais)
                     if obtener_pais:
                         codigo_pais = obtener_pais.get('iso_code')
                         name_country = obtener_pais.get('name')[0]['value']       
                         id_pais_odoo = get_country_odoo_by_name(codigo_pais)
+                    else:
+                        id_pais_odoo = False
                 else:
                     print("⚠️No hay datos en la variable direccion")
 
@@ -363,13 +392,13 @@ if obtener_ordenes:
                         'street2':    address2,
                         'city':       ciudad,
                         'zip':        postcode,
-                        'country_id': id_pais_odoo[0],
+                        'country_id': id_pais_odoo[0] if id_pais_odoo else False, #SI id_pais_odoo SOLO si es True, intenta coger el primer elemento [0].
                         'vat':        vat_procesado,
-                
                 }    
                     subir_cliente_odoo = create_client_odoo(datos_odoo)
                     if subir_cliente_odoo:
                         cliente_Odoo = [subir_cliente_odoo]
+
                 else:
                     actualizar_cliente = update_client(cliente_Odoo)
 
@@ -394,9 +423,7 @@ if obtener_ordenes:
                                 'product_uom_qty':  cantidad,
                                 'price_unit':       float(price),
                                 'name':             nombre_producto,
-                                'product_id':       obtener_producto_odoo[0],
-                                'tax_ids':          False
-                                   
+                                'product_id':       obtener_producto_odoo[0],                                  
 
                         })
                         msg_log = f"✅🆙 {nombre_producto} - {product_id } - {combinacion}"
@@ -452,6 +479,17 @@ if obtener_ordenes:
                 if new_order_id:
                     pedidos_cargados = pedidos_cargados + 1
                     print(f"🛒 Pedido creado en Odoo con ID: {new_order_id} del pedido PrestaShop ID: {id_orden}")
+                    #FUNCION EN PRUEBA
+                    obtener_orden_subida = get_order_detail_odoo(new_order_id)
+                    total_amount_invoicing = obtener_orden_subida[0].get('amount_total') 
+                    diferencia = abs(total_amount_invoicing - float(total_paid_taxes))
+                    update = {'state' : 'draft'}
+                    if diferencia >= 2:                        
+                        config.models.execute_kw(config.db, config.uid, config.password, 'sale.order', 'write',[[new_order_id], update])
+                        msg_log = f"❌ Odoo:{total_amount_invoicing} - PS:{total_paid_taxes} - DIFERENCIA:{diferencia:.2f}"
+                        mensaje_canal = odoo_send_chat(msg_log)
+                    else:
+                        continue
         else:
             print(f"🔭 El pedido ya existe en Odoo con ID: {id_pedido_ps} del pedido PrestaShop ID: {id_orden}")
 print(f'🧩🆙👤🪀 Se cargaron {pedidos_cargados} pedidos a Odoo satisfactoriamente')

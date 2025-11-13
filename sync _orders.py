@@ -4,7 +4,7 @@ import requests
 
 def get_orders_ps(): 
     try:
-        url = f"{config.prestashop_url}/orders/351485?output_format=JSON&display=full"                          #/orders?output_format=JSON&display=full&filter[date_add]=[2025-10-29%2000:00:00,2025-10-30%2000:00:00]&date=1"
+        url = f"{config.prestashop_url}/orders?output_format=JSON&display=full&filter[date_add]=[2025-11-06%2000:00:00,2025-11-07%2000:00:00]&date=1"
         auth_tuple = (config.api_key, '')
 
         response = requests.get(url, auth= auth_tuple)
@@ -152,7 +152,7 @@ def update_client(cliente):
                     'street2':    address2,
                     'city':       ciudad,
                     'zip':        postcode,
-                    'country_id': name_country,
+                    'country_id': id_pais_odoo[0],                    
                     'vat':        vat
         }
         existing_client = config.models.execute_kw(
@@ -265,6 +265,58 @@ def odoo_send_chat(message):
         return None
 
 
+def search_tag_odoo_by_name(metodo_pago):
+    try:
+        tag_ids = config.models.execute_kw(
+                config.db,
+                config.uid,
+                config.password,
+                'crm.tag',        # Modelo real
+                'search',
+                [[('name', '=', metodo_pago)]],
+                {'limit': 1}
+            )
+        if tag_ids:
+            return tag_ids[0]
+        if not tag_ids:
+            tag_ids = config.models.execute_kw(
+                config.db,
+                config.uid,
+                config.password,
+                'crm.tag',        
+                'create',
+                [{'name': metodo_pago}]
+            )
+        if tag_ids:
+            return tag_ids[0]
+    except Exception as e:
+        print(f'❌ search_tag_odoo_by_name: {e}')
+        return None
+    
+
+#########FUNCION DE PRUEBA#######
+def get_order_detail_odoo(new_order_id):
+    try:
+        order = config.models.execute_kw(
+            config.db,
+            config.uid,
+            config.password,
+            'sale.order',
+            'read',
+            [[new_order_id]],
+            {'fields': ['name', 'x_studio_p_total', 'partner_id', 'amount_total']}
+        )
+        if order:
+            print(f"🎉🎉 Detalle de la orden en Odoo ID: {new_order_id}")
+            return order
+        else:
+            print(f"❌❌Error orden en Odoo {new_order_id}")
+    except Exception as e:
+        print(f'❌ Error en get_order_detail_odoo: {e}')
+        return None
+#################################
+
+
 #_________________________________________ORDERS________________________________________________
 gc_canal_log    = [10]
 obtener_ordenes = get_orders_ps()
@@ -284,7 +336,10 @@ if obtener_ordenes:
                 referencia =  order_detail.get('reference')
                 id_cliente =  order_detail.get('id_customer')
                 id_adresses = order_detail.get('id_address_delivery')
+                shipping_tax = order_detail.get('total_shipping_tax_incl')
                 total_paid_taxes = order_detail.get('total_paid_tax_incl')
+                descuentos   =  order_detail.get('total_discounts', "0.0")
+
                 lineas_productos = order_detail.get('associations',{}).get('order_rows')
                 
                 #Obtener direccion cliente ->datos para res.partner
@@ -337,6 +392,7 @@ if obtener_ordenes:
                     subir_cliente_odoo = create_client_odoo(datos_odoo)
                     if subir_cliente_odoo:
                         cliente_Odoo = [subir_cliente_odoo]
+
                 else:
                     actualizar_cliente = update_client(cliente_Odoo)
 
@@ -361,7 +417,8 @@ if obtener_ordenes:
                                 'product_uom_qty':  cantidad,
                                 'price_unit':       float(price),
                                 'name':             nombre_producto,
-                                'product_id':       obtener_producto_odoo[0]
+                                'product_id':       obtener_producto_odoo[0],                                  
+
                         })
                         msg_log = f"✅🆙 {nombre_producto} - {product_id } - {combinacion}"
                         mensaje_canal = odoo_send_chat(msg_log)
@@ -375,11 +432,32 @@ if obtener_ordenes:
                         })
                         msg_log = f"❌ {nombre_producto} - {product_id } - {combinacion}"
                         mensaje_canal = odoo_send_chat(msg_log)
-                    #3. Crear el pedido en Odoo
+                
+                if shipping_tax:
+                    order_lines_ps.append({
+                        'product_uom_qty':  1,
+                        'price_unit':       float(shipping_tax),
+                        'product_id':       19375,
+                        'tax_ids':          False                                 
+                    })
+
+                if descuentos > "0":
+                    order_lines_ps.append({
+                        'product_uom_qty':  1,
+                        'price_unit':       str(-float(descuentos)),
+                        'product_id':       19374,
+                        'tax_ids':          False                               
+                    })
+
+
+                #3. Crear el pedido en Odoo
                 if producto_no_encontrado:
                     estado_pedido = 'draft' 
                 else:
                     estado_pedido = 'sale'   
+                
+                etiqueta_metodo_pago = search_tag_odoo_by_name(metodo_pago)
+                
                 od_sales_order = {
                     'partner_id':          cliente_Odoo[0],
                     'client_order_ref':    referencia,
@@ -388,12 +466,24 @@ if obtener_ordenes:
                     'require_signature':   False,
                     'team_id':             1,
                     'x_studio_p_total':    total_paid_taxes,
-                    'state':               estado_pedido                    
+                    'state':               estado_pedido,
+                    'tag_ids':             [(6, 0 , [etiqueta_metodo_pago])] if etiqueta_metodo_pago else [],       
                 }   
                 new_order_id = config.models.execute_kw(config.db, config.uid, config.password, 'sale.order', 'create', [od_sales_order])
                 if new_order_id:
                     pedidos_cargados = pedidos_cargados + 1
                     print(f"🛒 Pedido creado en Odoo con ID: {new_order_id} del pedido PrestaShop ID: {id_orden}")
+                    #FUNCION EN PRUEBA
+                    obtener_orden_subida = get_order_detail_odoo(new_order_id)
+                    total_amount_invoicing = obtener_orden_subida[0].get('amount_total') 
+                    diferencia = abs(total_amount_invoicing - float(total_paid_taxes))
+                    update = {'state' : 'draft'}
+                    if diferencia >= 2:                        
+                        config.models.execute_kw(config.db, config.uid, config.password, 'sale.order', 'write',[[new_order_id], update])
+                        msg_log = f"❌ Odoo:{total_amount_invoicing} - PS:{total_paid_taxes} - DIFERENCIA:{diferencia:.2f}"
+                        mensaje_canal = odoo_send_chat(msg_log)
+                    else:
+                        continue
         else:
             print(f"🔭 El pedido ya existe en Odoo con ID: {id_pedido_ps} del pedido PrestaShop ID: {id_orden}")
 print(f'🧩🆙👤🪀 Se cargaron {pedidos_cargados} pedidos a Odoo satisfactoriamente')
