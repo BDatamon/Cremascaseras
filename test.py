@@ -5,7 +5,7 @@ import re
 
 def get_orders_ps(): 
     try:
-        url = f"{config.prestashop_url}/orders?output_format=JSON&display=full&filter[date_add]=[2025-11-06%2000:00:00,2025-11-07%2000:00:00]&date=1"                       
+        url = f"{config.prestashop_url}/orders?output_format=JSON&display=full&filter[date_add]=[2025-11-12%2000:00:00,2025-11-13%2000:00:00]&date=1"                       
         auth_tuple = (config.api_key, '')
 
         response = requests.get(url, auth= auth_tuple)
