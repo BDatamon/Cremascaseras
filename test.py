@@ -5,7 +5,7 @@ import re
 
 def get_orders_ps(): 
     try:
-        url = f"{config.prestashop_url}/orders?output_format=JSON&display=full&filter[date_add]=[2025-11-12%2000:00:00,2025-11-13%2000:00:00]&date=1"                       
+        url = f"{config.prestashop_url}/orders?output_format=JSON&display=full&filter[date_add]=[2025-11-12%2000:00:00,2025-11-14%2000:00:00]&date=1"                       
         auth_tuple = (config.api_key, '')
 
         response = requests.get(url, auth= auth_tuple)
@@ -412,7 +412,7 @@ if obtener_ordenes:
                     nombre_producto     = linea.get('product_name')            #Producto Nombre
                     referencia_product  = linea.get('product_reference')       #Producto referencia
                     referencia_product  = linea.get('product_ean13": ')        #Codebar
-                    price               = linea.get('product_price', 0.0)      #Precio unitario
+                    price               = linea.get('unit_price_tax_excl', 0.0)      #Precio unitario
 
                     #por cada linea buscar ese producto por ID PRESTASHOP o referencia 
                     #el ID del producto ODOO 

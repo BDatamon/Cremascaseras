@@ -18,8 +18,8 @@ else:
 
 
 #Conexion Odoo
-url = "https://cremascaseras-v0.odoo.com/"
-db =       "cremascaseras-v0"
+url = "https://cremascaseras-calidad.odoo.com/"
+db =       "cremascaseras-calidad"
 username = "bocampo@datamon.es"
 password = "8b80a8d85d948f73708f01d43910651f9b8bb382"
 

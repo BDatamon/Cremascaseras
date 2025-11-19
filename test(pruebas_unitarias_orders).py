@@ -21,7 +21,6 @@ def get_order_detail_ps(id):
         return None
 
 
-
 def get_order_detail_ps(id): 
     try:
         url = f"{config.prestashop_url}/orders/{id}?output_format=JSON"
@@ -244,7 +243,7 @@ def get_product_odoo_by_id(product_id, combinacion):
         return None
     
 
-def odoo_send_chat(message):
+#def odoo_send_chat(message):
     try:
         # Enviar mensaje al canal
         message_id = config.models.execute_kw(
@@ -295,10 +294,10 @@ def search_tag_odoo_by_name(metodo_pago):
         return None
     
 
-id_orden = 352323
+id_orden = 352963
 
 #Si el pedido no esta: haremos el flujo de todo lo que representa la creacion del pedido 
-
+producto_no_encontrado = None
 order_detail = get_order_detail_ps(id_orden)
 if order_detail:
     num_factura = order_detail.get('invoice_number')
@@ -380,7 +379,7 @@ for linea in lineas_productos:
     nombre_producto     = linea.get('product_name')            #Producto Nombre
     referencia_product  = linea.get('product_reference')       #Producto referencia
     referencia_product  = linea.get('product_ean13": ')        #Codebar
-    price               = linea.get('product_price', 0.0)      #Precio unitario
+    price               = linea.get('unit_price_tax_excl', 0.0)      #Precio unitario
 
     #por cada linea buscar ese producto por ID PRESTASHOP o referencia 
     #el ID del producto ODOO 
@@ -392,10 +391,9 @@ for linea in lineas_productos:
                 'price_unit':       float(price),
                 'name':             nombre_producto,
                 'product_id':       obtener_producto_odoo[0],                                  
-
         })
-        msg_log = f"✅🆙 {nombre_producto} - {product_id } - {combinacion}"
-        mensaje_canal = odoo_send_chat(msg_log)
+        # msg_log = f"✅🆙 {nombre_producto} - {product_id } - {combinacion}"
+        # mensaje_canal = odoo_send_chat(msg_log)
     #Si no encuentro el producto:   
     else:
         producto_no_encontrado = True
@@ -404,8 +402,8 @@ for linea in lineas_productos:
                 'price_unit':       float(price),
                 'name':             nombre_producto
         })
-        msg_log = f"❌ {nombre_producto} - {product_id } - {combinacion}"
-        mensaje_canal = odoo_send_chat(msg_log)
+        # msg_log = f"❌ {nombre_producto} - {product_id } - {combinacion}"
+        # mensaje_canal = odoo_send_chat(msg_log)
 
 if shipping_tax:
     order_lines_ps.append({
